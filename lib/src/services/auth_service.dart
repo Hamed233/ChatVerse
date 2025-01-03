@@ -14,6 +14,8 @@ class AuthService {
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  User? get currentUser => _auth.currentUser;
+
   Future<ChatUser?> getCurrentUser() async {
     final user = _auth.currentUser;
     if (user == null) return null;

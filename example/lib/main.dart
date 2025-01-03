@@ -94,40 +94,40 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const ChatDemo(),
+      home: const ChatApp(),
     );
   }
 }
 
-class ChatDemo extends StatefulWidget {
-  const ChatDemo({Key? key}) : super(key: key);
+class ChatApp extends StatefulWidget {
+  const ChatApp({Key? key}) : super(key: key);
 
   @override
-  State<ChatDemo> createState() => _ChatDemoState();
+  State<ChatApp> createState() => _ChatAppState();
 }
 
-class _ChatDemoState extends State<ChatDemo> {
+class _ChatAppState extends State<ChatApp> {
   late ChatController _chatController;
   final String _userId = 'user1';
   final Map<String, ChatUser> _users = {
     'user1': ChatUser(
       id: 'user1',
-      name: 'John Doe',
+      name: 'Noor Ahmed',
       photoUrl: 'https://i.pravatar.cc/150?img=1',
     ),
     'user2': ChatUser(
       id: 'user2',
-      name: 'Jane Smith',
+      name: 'Nono Nimo',
       photoUrl: 'https://i.pravatar.cc/150?img=2',
     ),
     'user3': ChatUser(
       id: 'user3',
-      name: 'Mike Johnson',
+      name: 'Salah Ahmed',
       photoUrl: 'https://i.pravatar.cc/150?img=3',
     ),
     'user4': ChatUser(
       id: 'user4',
-      name: 'Sarah Wilson',
+      name: 'Hamed Essam',
       photoUrl: 'https://i.pravatar.cc/150?img=4',
     ),
   };
@@ -149,6 +149,7 @@ class _ChatDemoState extends State<ChatDemo> {
       child: ChatListScreen(
         users: _users,
         currentUserId: _userId,
+        controller: _chatController,
       ),
     );
   }

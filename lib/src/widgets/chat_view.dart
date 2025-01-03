@@ -1,209 +1,128 @@
 import 'package:flutter/material.dart';
 import '../models/message.dart';
-import '../models/chat_user.dart';
 import '../utils/chat_theme.dart';
 import 'chat_bubble.dart';
 import 'chat_input.dart';
 
 class ChatView extends StatefulWidget {
+  final String roomId;
+  final String currentUserId;
   final List<Message> messages;
-  final ChatUser currentUser;
-  final Map<String, ChatUser> users;
   final Function(String) onSendMessage;
-  final Function(String, String?)? onSendImage;
-  final Function(String, String)? onSendFile;
-  final Function()? onStartTyping;
-  final Function()? onStopTyping;
+  final Function(Message)? onMessageTap;
   final Function(Message)? onMessageLongPress;
-  final Widget Function(Message)? replyWidgetBuilder;
+  final Function(bool)? onTypingStatusChanged;
   final ChatTheme theme;
+  final Widget Function(BuildContext, Message, bool)? bubbleBuilder;
+  final Widget Function(BuildContext)? headerBuilder;
+  final Widget Function(BuildContext)? footerBuilder;
   final Widget? loadingWidget;
   final Widget? emptyWidget;
-  final Widget? headerWidget;
-  final bool showUserNames;
+  final Widget? errorWidget;
   final bool showTypingIndicator;
-  final List<String> typingUsers;
+  final bool showUserAvatar;
+  final bool showUserName;
+  final bool showTimestamp;
+  final bool showReadStatus;
+  final bool showDeliveryStatus;
+  final ScrollController? scrollController;
+  final bool reverse;
+  final EdgeInsets padding;
 
   const ChatView({
-    Key? key,
+    super.key,
+    required this.roomId,
+    required this.currentUserId,
     required this.messages,
-    required this.currentUser,
-    required this.users,
     required this.onSendMessage,
-    this.onSendImage,
-    this.onSendFile,
-    this.onStartTyping,
-    this.onStopTyping,
+    this.onMessageTap,
     this.onMessageLongPress,
-    this.replyWidgetBuilder,
+    this.onTypingStatusChanged,
     this.theme = const ChatTheme(),
+    this.bubbleBuilder,
+    this.headerBuilder,
+    this.footerBuilder,
     this.loadingWidget,
     this.emptyWidget,
-    this.headerWidget,
-    this.showUserNames = true,
+    this.errorWidget,
     this.showTypingIndicator = true,
-    this.typingUsers = const [],
-  }) : super(key: key);
+    this.showUserAvatar = true,
+    this.showUserName = true,
+    this.showTimestamp = true,
+    this.showReadStatus = true,
+    this.showDeliveryStatus = true,
+    this.scrollController,
+    this.reverse = true,
+    this.padding = const EdgeInsets.all(8.0),
+  });
 
   @override
   State<ChatView> createState() => _ChatViewState();
 }
 
 class _ChatViewState extends State<ChatView> {
-  final ScrollController _scrollController = ScrollController();
-  bool _isAtBottom = true;
+  late ScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_scrollListener);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    _scrollController = widget.scrollController ?? ScrollController();
   }
 
-  void _scrollListener() {
-    if (_scrollController.position.pixels ==
-        _scrollController.position.maxScrollExtent) {
-      setState(() => _isAtBottom = true);
-    } else {
-      setState(() => _isAtBottom = false);
+  @override
+  void dispose() {
+    if (widget.scrollController == null) {
+      _scrollController.dispose();
     }
-  }
-
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        if (widget.headerWidget != null) widget.headerWidget!,
+        if (widget.headerBuilder != null) widget.headerBuilder!(context),
         Expanded(
-          child: Stack(
-            children: [
-              if (widget.messages.isEmpty && widget.emptyWidget != null)
-                widget.emptyWidget!
-              else
-                ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  itemCount: widget.messages.length +
-                      (widget.showTypingIndicator && widget.typingUsers.isNotEmpty
-                          ? 1
-                          : 0),
-                  itemBuilder: (context, index) {
-                    if (index == widget.messages.length) {
-                      return _buildTypingIndicator();
-                    }
-
-                    final message = widget.messages[index];
-                    final isCurrentUser =
-                        message.senderId == widget.currentUser.id;
-                    final showName = widget.showUserNames &&
-                        !isCurrentUser &&
-                        (index == 0 ||
-                            widget.messages[index - 1].senderId !=
-                                message.senderId);
-
-                    return ChatBubble(
-                      message: message,
-                      isCurrentUser: isCurrentUser,
-                      theme: widget.theme,
-                      onLongPress: widget.onMessageLongPress != null
-                          ? () => widget.onMessageLongPress!(message)
-                          : null,
-                      replyWidget: message.replyTo != null &&
-                              widget.replyWidgetBuilder != null
-                          ? widget.replyWidgetBuilder!(message)
-                          : null,
-                      senderName: showName
-                          ? widget.users[message.senderId]?.name
-                          : null,
-                    );
-                  },
-                ),
-              if (!_isAtBottom)
-                Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: FloatingActionButton(
-                    mini: true,
-                    backgroundColor: widget.theme.primaryColor,
-                    child: const Icon(Icons.keyboard_arrow_down),
-                    onPressed: _scrollToBottom,
-                  ),
-                ),
-            ],
-          ),
+          child: _buildMessageList(),
         ),
+        if (widget.footerBuilder != null) widget.footerBuilder!(context),
         ChatInput(
-          onSendText: widget.onSendMessage,
-          onSendImage: widget.onSendImage,
-          onSendFile: widget.onSendFile,
-          onStartTyping: widget.onStartTyping,
-          onStopTyping: widget.onStopTyping,
+          onSendMessage: widget.onSendMessage,
+          onTypingStatusChanged: widget.onTypingStatusChanged,
           theme: widget.theme,
         ),
       ],
     );
   }
 
-  Widget _buildTypingIndicator() {
-    if (!widget.showTypingIndicator || widget.typingUsers.isEmpty) {
-      return const SizedBox.shrink();
+  Widget _buildMessageList() {
+    if (widget.messages.isEmpty) {
+      return widget.emptyWidget ?? const Center(child: Text('No messages yet'));
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(left: 16, bottom: 8),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: widget.theme.receivedMessageColor.withOpacity(0.7),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildDot(1),
-                _buildDot(2),
-                _buildDot(3),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    return ListView.builder(
+      controller: _scrollController,
+      reverse: widget.reverse,
+      padding: widget.padding,
+      itemCount: widget.messages.length,
+      itemBuilder: (context, index) {
+        final message = widget.messages[index];
+        final isCurrentUser = message.senderId == widget.currentUserId;
 
-  Widget _buildDot(int index) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 300 * index),
-      builder: (context, value, child) {
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          height: 6 + (value * 3),
-          width: 6 + (value * 3),
-          decoration: BoxDecoration(
-            color: widget.theme.receivedMessageTextColor.withOpacity(0.7),
-            shape: BoxShape.circle,
-          ),
-        );
+        return widget.bubbleBuilder?.call(context, message, isCurrentUser) ??
+            ChatBubble(
+              message: message,
+              isCurrentUser: isCurrentUser,
+              theme: widget.theme,
+              showUserAvatar: widget.showUserAvatar,
+              showUserName: widget.showUserName,
+              showTimestamp: widget.showTimestamp,
+              showReadStatus: widget.showReadStatus,
+              showDeliveryStatus: widget.showDeliveryStatus,
+              onTap: () => widget.onMessageTap?.call(message),
+              onLongPress: () => widget.onMessageLongPress?.call(message),
+            );
       },
     );
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
   }
 }

@@ -11,6 +11,8 @@ void main() {
         id: 'test_id',
         senderId: 'sender_id',
         roomId: 'room_id',
+        senderName: 'sender_name',
+
         content: 'Hello, world!',
         type: MessageType.text,
         createdAt: DateTime.now(),
@@ -37,6 +39,8 @@ void main() {
         id: 'test_id',
         senderId: 'sender_id',
         roomId: 'room_id',
+        senderName: 'sender_name',
+
         content: 'Hello, world!',
         type: MessageType.text,
         createdAt: DateTime.now(),
@@ -49,7 +53,7 @@ void main() {
               message: message,
               isCurrentUser: false,
               theme: const ChatTheme(),
-              senderName: 'John Doe',
+              
             ),
           ),
         ),
@@ -65,6 +69,7 @@ void main() {
         final message = Message(
           id: 'test_id',
           senderId: 'sender_id',
+        senderName: 'sender_name',
           roomId: 'room_id',
           content: 'https://via.placeholder.com/150',
           type: MessageType.image,
@@ -95,6 +100,7 @@ void main() {
       bool longPressed = false;
       final message = Message(
         id: 'test_id',
+        senderName: 'sender_name',
         senderId: 'sender_id',
         roomId: 'room_id',
         content: 'Hello, world!',
@@ -124,6 +130,8 @@ void main() {
       final message = Message(
         id: 'test_id',
         senderId: 'sender_id',
+        senderName: 'sender_name',
+
         roomId: 'room_id',
         content: 'Hello, world!',
         type: MessageType.text,
@@ -151,6 +159,7 @@ void main() {
       final message = Message(
         id: 'test_id',
         senderId: 'sender_id',
+        senderName: 'sender_name',
         roomId: 'room_id',
         content: 'Hello, world!',
         type: MessageType.text,

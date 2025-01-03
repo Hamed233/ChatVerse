@@ -1,14 +1,11 @@
-import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:uuid/uuid.dart';
 import '../models/message.dart';
 import '../models/chat_room.dart';
-import '../models/chat_user.dart';
 
 class ChatService {
-  final FirebaseFirestore _firestore;
   final String userId;
-
+  final FirebaseFirestore _firestore;
+  
   ChatService({
     required this.userId,
     FirebaseFirestore? firestore,
@@ -22,9 +19,23 @@ class ChatService {
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return ChatRoom.fromJson(data);
+        try {
+          final data = doc.data();
+          data['id'] = doc.id;
+          return ChatRoom.fromMap(Map<String, dynamic>.from(data));
+        } catch (e) {
+          print('Error parsing room data: $e');
+          // Return a default room in case of parsing error
+          return ChatRoom(
+            id: doc.id,
+            name: 'Unnamed Room',
+            memberIds: [userId],
+            adminIds: [userId],
+            type: ChatRoomType.individual,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+        }
       }).toList();
     });
   }
@@ -34,22 +45,23 @@ class ChatService {
     required List<String> memberIds,
     required ChatRoomType type,
     required List<String> adminIds,
-    required DateTime createdAt,
-    required DateTime updatedAt,
   }) async {
+    final now = DateTime.now();
     final roomData = {
       'name': name,
       'memberIds': memberIds,
-      'type': type.toString(),
+      'type': type.toString().split('.').last,
       'adminIds': adminIds,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
+      'createdAt': Timestamp.fromDate(now),
+      'updatedAt': Timestamp.fromDate(now),
+      'isArchived': false,
+      'isMuted': false,
     };
 
     final docRef = await _firestore.collection('rooms').add(roomData);
     roomData['id'] = docRef.id;
     
-    return ChatRoom.fromJson(roomData);
+    return ChatRoom.fromMap(Map<String, dynamic>.from(roomData));
   }
 
   Future<void> deleteRoom(String roomId) async {
@@ -80,7 +92,7 @@ class ChatService {
       return snapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
-        return Message.fromJson(data);
+        return Message.fromMap(Map<String, dynamic>.from(data));
       }).toList();
     });
   }
@@ -91,11 +103,11 @@ class ChatService {
 
     // Add message to messages subcollection
     final messageRef = roomRef.collection('messages').doc(message.id);
-    batch.set(messageRef, message.toJson());
+    batch.set(messageRef, message.toMap());
 
     // Update room's lastMessage and lastMessageAt
     batch.update(roomRef, {
-      'lastMessage': message.toJson(),
+      'lastMessage': message.toMap(),
       'lastMessageAt': Timestamp.fromDate(message.createdAt),
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     });
@@ -104,14 +116,14 @@ class ChatService {
   }
 
   // Room Member Operations
-  Future<void> addMembersToRoom(String roomId, List<String> userIds) async {
+  Future<void> addMembers(String roomId, List<String> userIds) async {
     await _firestore.collection('rooms').doc(roomId).update({
       'memberIds': FieldValue.arrayUnion(userIds),
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     });
   }
 
-  Future<void> removeMembersFromRoom(String roomId, List<String> userIds) async {
+  Future<void> removeMembers(String roomId, List<String> userIds) async {
     await _firestore.collection('rooms').doc(roomId).update({
       'memberIds': FieldValue.arrayRemove(userIds),
       'updatedAt': Timestamp.fromDate(DateTime.now()),
@@ -145,6 +157,6 @@ class ChatService {
   }
 
   Future<void> updateRoom(ChatRoom room) async {
-    await _firestore.collection('rooms').doc(room.id).update(room.toJson());
+    await _firestore.collection('rooms').doc(room.id).update(room.toMap());
   }
 }

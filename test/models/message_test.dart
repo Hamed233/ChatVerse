@@ -9,6 +9,7 @@ void main() {
       final message = Message(
         id: 'test_id',
         senderId: 'sender_id',
+        senderName: 'sender_name',
         roomId: 'room_id',
         content: 'Hello, world!',
         type: MessageType.text,
@@ -31,6 +32,8 @@ void main() {
       final message = Message(
         id: 'test_id',
         senderId: 'sender_id',
+        senderName: 'sender_name',
+
         roomId: 'room_id',
         content: 'Hello, world!',
         type: MessageType.text,
@@ -65,7 +68,7 @@ void main() {
         'attachments': {'type': 'image'},
       };
 
-      final message = Message.fromJson(json);
+      final message = Message.fromMap(json);
 
       expect(message.id, 'test_id');
       expect(message.senderId, 'sender_id');
@@ -84,6 +87,8 @@ void main() {
       final message = Message(
         id: 'test_id',
         senderId: 'sender_id',
+        senderName: 'sender_name',
+
         roomId: 'room_id',
         content: 'Hello, world!',
         type: MessageType.text,
@@ -93,7 +98,7 @@ void main() {
         attachments: {'type': 'image'},
       );
 
-      final json = message.toJson();
+      final json = message.toMap();
 
       expect(json['id'], 'test_id');
       expect(json['senderId'], 'sender_id');
@@ -111,6 +116,8 @@ void main() {
       final message = Message(
         id: 'test_id',
         senderId: 'sender_id',
+        senderName: 'sender_name',
+
         roomId: 'room_id',
         content: 'Hello, world!',
         type: MessageType.text,
@@ -134,6 +141,7 @@ void main() {
         id: 'test_id',
         senderId: 'sender_id',
         roomId: 'room_id',
+        senderName: 'sender_name',
         content: 'image_url',
         type: MessageType.image,
         createdAt: now,

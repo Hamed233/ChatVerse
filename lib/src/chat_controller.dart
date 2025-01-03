@@ -98,6 +98,7 @@ class ChatController extends ChangeNotifier {
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         roomId: _currentRoom!.id,
         senderId: userId,
+        senderName: _currentRoom!.name,
         content: content,
         type: type,
         metadata: metadata,
@@ -125,8 +126,6 @@ class ChatController extends ChangeNotifier {
         memberIds: memberIds,
         type: type,
         adminIds: adminIds,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
       );
       return room;
     } catch (e) {
@@ -157,6 +156,35 @@ class ChatController extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error updating room: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> addMembers(List<String> memberIds) async {
+    try {
+      if (_currentRoom == null) {
+        throw Exception('No room selected');
+      }
+      await _chatService.addMembers(_currentRoom!.id, memberIds);
+    } catch (e) {
+      debugPrint('Error adding members: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> removeMembers(List<String> memberIds) async {
+    try {
+      if (_currentRoom == null) {
+        throw Exception('No room selected');
+      }
+      await _chatService.removeMembers(_currentRoom!.id, memberIds);
+      
+      // If the current user is being removed, close the chat
+      if (memberIds.contains(userId)) {
+        _currentRoom = null;
+      }
+    } catch (e) {
+      debugPrint('Error removing members: $e');
       rethrow;
     }
   }

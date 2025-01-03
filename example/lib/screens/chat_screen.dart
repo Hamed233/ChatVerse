@@ -6,28 +6,71 @@ import 'chat_details_screen.dart';
 class ChatScreen extends StatelessWidget {
   final Map<String, ChatUser> users;
   final String currentUserId;
+  final ChatController controller;
 
   const ChatScreen({
-    Key? key,
+    super.key,
     required this.users,
     required this.currentUserId,
-  }) : super(key: key);
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: controller,
+      child: _ChatScreenContent(
+        users: users,
+        currentUserId: currentUserId,
+      ),
+    );
+  }
+}
+
+class _ChatScreenContent extends StatelessWidget {
+  final Map<String, ChatUser> users;
+  final String currentUserId;
+
+  const _ChatScreenContent({
+    super.key,
+    required this.users,
+    required this.currentUserId,
+  });
+
+  void _navigateToChatDetails(BuildContext context, ChatController controller) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatDetailsScreen(
+          users: users,
+          currentUserId: currentUserId,
+          controller: controller,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<ChatController>(
       builder: (context, controller, _) {
         final room = controller.currentRoom;
-        if (room == null) return const SizedBox();
+        if (room == null) {
+          return const Center(child: Text('No chat room selected'));
+        }
 
         final isGroup = room.type == ChatRoomType.group;
         final otherUserId = isGroup
             ? null
-            : room.memberIds.firstWhere((id) => id != currentUserId);
-        final otherUser = otherUserId != null ? users[otherUserId] : null;
+            : room.memberIds.firstWhere(
+                (id) => id != currentUserId,
+                orElse: () => '',
+              );
+        final otherUser = otherUserId?.isNotEmpty == true ? users[otherUserId] : null;
 
         return Scaffold(
           appBar: AppBar(
+            centerTitle: false,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () {
@@ -36,18 +79,10 @@ class ChatScreen extends StatelessWidget {
               },
             ),
             title: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChatDetailsScreen(
-                      users: users,
-                      currentUserId: currentUserId,
-                    ),
-                  ),
-                );
-              },
+              onTap: () => _navigateToChatDetails(context, controller),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     isGroup ? room.name : (otherUser?.name ?? 'Unknown User'),
@@ -70,17 +105,7 @@ class ChatScreen extends StatelessWidget {
             actions: [
               IconButton(
                 icon: const Icon(Icons.info_outline),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ChatDetailsScreen(
-                        users: users,
-                        currentUserId: currentUserId,
-                      ),
-                    ),
-                  );
-                },
+                onPressed: () => _navigateToChatDetails(context, controller),
               ),
             ],
           ),
@@ -88,18 +113,23 @@ class ChatScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: ChatView(
+                  roomId: room.id,
+                  currentUserId: currentUserId,
                   messages: controller.messages,
-                  currentUser: users[currentUserId]!,
-                  users: users,
                   onSendMessage: (message) {
-                    controller.sendMessage(content: message);
+                    if (message.trim().isNotEmpty) {
+                      controller.sendMessage(
+                        content: message,
+                        type: MessageType.text,
+                      );
+                    }
                   },
-                  onSendImage: (path, caption) {
-                    controller.sendMessage(
-                      content: path,
-                      type: MessageType.image,
-                      metadata: {'caption': caption},
-                    );
+                  onMessageTap: (message) {
+                    // Handle message tap
+                  },
+                  onTypingStatusChanged: (isTyping) {
+                    // Handle typing status
+                    // controller.setTypingStatus(isTyping);
                   },
                 ),
               ),

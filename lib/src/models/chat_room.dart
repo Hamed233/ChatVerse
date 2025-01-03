@@ -76,7 +76,7 @@ class ChatRoom {
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
@@ -84,46 +84,74 @@ class ChatRoom {
       'type': type.toString().split('.').last,
       'memberIds': memberIds,
       'adminIds': adminIds,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-      'lastMessageAt': lastMessageAt?.toIso8601String(),
-      'lastMessage': lastMessage?.toJson(),
-      'metadata': metadata,
-      'typingUsers': typingUsers?.map(
-        (key, value) => MapEntry(key, value.toIso8601String()),
-      ),
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+      if (lastMessageAt != null) 'lastMessageAt': Timestamp.fromDate(lastMessageAt!),
+      if (lastMessage != null) 'lastMessage': lastMessage!.toMap(),
+      if (metadata != null) 'metadata': metadata,
+      if (typingUsers != null)
+        'typingUsers': typingUsers!.map(
+          (key, value) => MapEntry(key, Timestamp.fromDate(value)),
+        ),
       'isArchived': isArchived,
       'isMuted': isMuted,
     };
   }
 
-  factory ChatRoom.fromJson(Map<String, dynamic> json) {
+  factory ChatRoom.fromMap(Map<String, dynamic> map) {
+    DateTime parseDateTime(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      if (value is String) {
+        final parsed = DateTime.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+      return DateTime.now();
+    }
+
+    Map<String, DateTime>? parseTypingUsers(dynamic value) {
+      if (value == null) return null;
+      if (value is! Map) return null;
+
+      return Map<String, DateTime>.from(
+        value.map((key, value) => MapEntry(key.toString(), parseDateTime(value))),
+      );
+    }
+
     return ChatRoom(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      photoUrl: json['photoUrl'] as String?,
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? '',
+      photoUrl: map['photoUrl'],
       type: ChatRoomType.values.firstWhere(
-        (e) => e.toString().split('.').last == json['type'],
+        (e) => e.toString().split('.').last == map['type']?.toString(),
         orElse: () => ChatRoomType.individual,
       ),
-      memberIds: List<String>.from(json['memberIds'] as List),
-      adminIds: List<String>.from(json['adminIds'] as List),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      lastMessageAt: json['lastMessageAt'] != null
-          ? DateTime.parse(json['lastMessageAt'] as String)
+      memberIds: List<String>.from(map['memberIds']?.map((e) => e.toString()) ?? []),
+      adminIds: List<String>.from(map['adminIds']?.map((e) => e.toString()) ?? []),
+      createdAt: parseDateTime(map['createdAt']),
+      updatedAt: parseDateTime(map['updatedAt']),
+      lastMessageAt: map['lastMessageAt'] != null ? parseDateTime(map['lastMessageAt']) : null,
+      lastMessage: map['lastMessage'] != null
+          ? Message.fromMap(Map<String, dynamic>.from(map['lastMessage']))
           : null,
-      lastMessage: json['lastMessage'] != null
-          ? Message.fromJson(json['lastMessage'] as Map<String, dynamic>)
-          : null,
-      metadata: json['metadata'] as Map<String, dynamic>?,
-      typingUsers: json['typingUsers'] != null
-          ? Map<String, DateTime>.from(json['typingUsers'] as Map<String, dynamic>).map(
-              (key, value) => MapEntry(key, DateTime.parse(value as String)))
-          : null,
-      isArchived: json['isArchived'] as bool? ?? false,
-      isMuted: json['isMuted'] as bool? ?? false,
+      metadata: map['metadata'],
+      typingUsers: parseTypingUsers(map['typingUsers']),
+      isArchived: map['isArchived'] as bool? ?? false,
+      isMuted: map['isMuted'] as bool? ?? false,
     );
+  }
+
+  static ChatRoomType parseRoomType(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'group':
+        return ChatRoomType.group;
+      case 'channel':
+        return ChatRoomType.channel;
+      case 'individual':
+      default:
+        return ChatRoomType.individual;
+    }
   }
 
   @override

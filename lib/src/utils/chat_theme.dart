@@ -16,6 +16,17 @@ class ChatTheme {
   final BorderRadius messageBorderRadius;
   final EdgeInsets messagePadding;
   final double maxMessageWidth;
+  final Color userBubbleColor;
+  final Color otherBubbleColor;
+  final Color userTextColor;
+  final Color otherTextColor;
+  final Color timestampColor;
+  final Color inputBackgroundColor;
+  final Color inputBorderColor;
+  final Color inputTextColor;
+  final Color inputHintColor;
+  final Color inputIconColor;
+  final Color inputFillColor;
 
   const ChatTheme({
     this.primaryColor = const Color(0xFF2196F3),
@@ -46,6 +57,17 @@ class ChatTheme {
       vertical: 10,
     ),
     this.maxMessageWidth = 280,
+    this.userBubbleColor = const Color(0xFF2196F3),
+    this.otherBubbleColor = const Color(0xFFE8E8E8),
+    this.userTextColor = Colors.white,
+    this.otherTextColor = Colors.black87,
+    this.timestampColor = Colors.grey,
+    this.inputBackgroundColor = Colors.white,
+    this.inputBorderColor = Colors.grey,
+    this.inputTextColor = Colors.black87,
+    this.inputHintColor = Colors.grey,
+    this.inputIconColor = Colors.grey,
+    this.inputFillColor = const Color(0xFFF5F5F5),
   });
 
   ChatTheme copyWith({
@@ -64,6 +86,17 @@ class ChatTheme {
     BorderRadius? messageBorderRadius,
     EdgeInsets? messagePadding,
     double? maxMessageWidth,
+    Color? userBubbleColor,
+    Color? otherBubbleColor,
+    Color? userTextColor,
+    Color? otherTextColor,
+    Color? timestampColor,
+    Color? inputBackgroundColor,
+    Color? inputBorderColor,
+    Color? inputTextColor,
+    Color? inputHintColor,
+    Color? inputIconColor,
+    Color? inputFillColor,
   }) {
     return ChatTheme(
       primaryColor: primaryColor ?? this.primaryColor,
@@ -82,6 +115,17 @@ class ChatTheme {
       messageBorderRadius: messageBorderRadius ?? this.messageBorderRadius,
       messagePadding: messagePadding ?? this.messagePadding,
       maxMessageWidth: maxMessageWidth ?? this.maxMessageWidth,
+      userBubbleColor: userBubbleColor ?? this.userBubbleColor,
+      otherBubbleColor: otherBubbleColor ?? this.otherBubbleColor,
+      userTextColor: userTextColor ?? this.userTextColor,
+      otherTextColor: otherTextColor ?? this.otherTextColor,
+      timestampColor: timestampColor ?? this.timestampColor,
+      inputBackgroundColor: inputBackgroundColor ?? this.inputBackgroundColor,
+      inputBorderColor: inputBorderColor ?? this.inputBorderColor,
+      inputTextColor: inputTextColor ?? this.inputTextColor,
+      inputHintColor: inputHintColor ?? this.inputHintColor,
+      inputIconColor: inputIconColor ?? this.inputIconColor,
+      inputFillColor: inputFillColor ?? this.inputFillColor,
     );
   }
 
@@ -110,6 +154,17 @@ class ChatTheme {
         fontWeight: FontWeight.bold,
         color: Colors.grey,
       ),
+      userBubbleColor: Color(0xFF2196F3),
+      otherBubbleColor: Color(0xFF424242),
+      userTextColor: Colors.white,
+      otherTextColor: Colors.white,
+      timestampColor: Colors.grey,
+      inputBackgroundColor: Color(0xFF121212),
+      inputBorderColor: Colors.grey,
+      inputTextColor: Colors.white,
+      inputHintColor: Colors.grey,
+      inputIconColor: Colors.grey,
+      inputFillColor: Color(0xFF1A1A1A),
     );
   }
 }

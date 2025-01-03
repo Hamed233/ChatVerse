@@ -9,72 +9,104 @@ class ChatBubble extends StatelessWidget {
   final Message message;
   final bool isCurrentUser;
   final ChatTheme theme;
+  final bool showUserAvatar;
+  final bool showUserName;
+  final bool showTimestamp;
+  final bool showReadStatus;
+  final bool showDeliveryStatus;
+  final VoidCallback? onTap;
   final VoidCallback? onLongPress;
-  final Widget? replyWidget;
-  final String? senderName;
 
   const ChatBubble({
-    Key? key,
+    super.key,
     required this.message,
     required this.isCurrentUser,
     required this.theme,
+    this.showUserAvatar = true,
+    this.showUserName = true,
+    this.showTimestamp = true,
+    this.showReadStatus = true,
+    this.showDeliveryStatus = true,
+    this.onTap,
     this.onLongPress,
-    this.replyWidget,
-    this.senderName,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: BoxConstraints(
-          maxWidth: theme.maxMessageWidth,
-        ),
         margin: EdgeInsets.only(
           left: isCurrentUser ? 64 : 16,
           right: isCurrentUser ? 16 : 64,
           top: 4,
           bottom: 4,
         ),
-        child: Column(
-          crossAxisAlignment:
-              isCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            if (senderName != null && !isCurrentUser)
-              Padding(
-                padding: const EdgeInsets.only(left: 12, bottom: 4),
-                child: Text(
-                  senderName!,
-                  style: theme.userNameStyle,
+        child: GestureDetector(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Column(
+            crossAxisAlignment:
+                isCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              if (showUserName && !isCurrentUser)
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, bottom: 4),
+                  child: Text(
+                    message.senderName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.timestampColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
-            GestureDetector(
-              onLongPress: onLongPress,
-              child: Container(
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
-                  color: isCurrentUser
-                      ? theme.sentMessageColor
-                      : theme.receivedMessageColor,
-                  borderRadius: theme.messageBorderRadius,
+                  color: isCurrentUser ? theme.sentMessageColor : theme.receivedMessageColor,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                padding: theme.messagePadding,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (replyWidget != null) replyWidget!,
                     _buildMessageContent(),
-                    const SizedBox(height: 4),
-                    Text(
-                      timeago.format(message.createdAt),
-                      style: theme.timeTextStyle,
-                    ),
-                    if (isCurrentUser) _buildMessageStatus(),
+                    if (showTimestamp)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              timeago.format(message.createdAt),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: theme.timestampColor,
+                              ),
+                            ),
+                            if (showDeliveryStatus && isCurrentUser) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                message.isDelivered
+                                    ? Icons.done_all
+                                    : Icons.done,
+                                size: 12,
+                                color: message.isRead && showReadStatus
+                                    ? theme.primaryColor
+                                    : theme.timestampColor,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -150,45 +182,5 @@ class ChatBubble extends StatelessWidget {
           ),
         );
     }
-  }
-
-  Widget _buildMessageStatus() {
-    // Get message status from metadata if available
-    final status = message.metadata?['status'] as String?;
-    IconData icon = Icons.check;
-    Color color = Colors.grey;
-
-    if (status != null) {
-      switch (status) {
-        case 'sending':
-          icon = Icons.access_time;
-          break;
-        case 'sent':
-          icon = Icons.check;
-          break;
-        case 'delivered':
-          icon = Icons.done_all;
-          break;
-        case 'read':
-          icon = Icons.done_all;
-          color = Colors.blue;
-          break;
-        case 'failed':
-          icon = Icons.error_outline;
-          color = Colors.red;
-          break;
-        default:
-          icon = Icons.check;
-      }
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Icon(
-        icon,
-        size: 16,
-        color: color,
-      ),
-    );
   }
 }

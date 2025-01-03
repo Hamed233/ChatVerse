@@ -82,7 +82,7 @@ void main() {
         'isMuted': true,
       };
 
-      final room = ChatRoom.fromJson(json);
+      final room = ChatRoom.fromMap(json);
 
       expect(room.id, 'test_id');
       expect(room.name, 'Test Room');
@@ -119,7 +119,7 @@ void main() {
         isMuted: true,
       );
 
-      final json = room.toJson();
+      final json = room.toMap();
 
       expect(json['id'], 'test_id');
       expect(json['name'], 'Test Room');

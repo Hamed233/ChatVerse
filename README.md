@@ -1,134 +1,198 @@
-# ChatVerse
+# ChatVerse 🚀
 
-A powerful and flexible Flutter chat library that seamlessly integrates with Firebase, providing a complete solution for adding chat functionality to your Flutter applications.
+[![pub package](https://img.shields.io/pub/v/chatverse.svg)](https://pub.dev/packages/chatverse)
+[![likes](https://img.shields.io/pub/likes/chatverse?logo=dart)](https://pub.dev/packages/chatverse/score)
+[![popularity](https://img.shields.io/pub/popularity/chatverse?logo=dart)](https://pub.dev/packages/chatverse/score)
+[![Flutter Platform](https://img.shields.io/badge/Flutter-Platform-yellow.svg)](https://flutter.dev)
 
-## Features
+A powerful and customizable Flutter chat library with Firebase integration, featuring a beautiful UI, group chat support, and real-time messaging capabilities.
 
-- 🔥 Firebase Integration
-- 💬 Individual & Group Chats
-- 🎨 Customizable UI
-- 📱 Modern Material Design
-- 🔔 Real-time Updates
-- 📸 Media Sharing
-- 😊 Emoji Support
-- 🔗 Link Preview
-- ⌨️ Typing Indicators
-- ✅ Read Receipts
-- 🔄 Online/Offline Status
-- 📍 Reply to Messages
-- 🗑️ Message Deletion
-- 📱 Responsive Design
+## Features 🌟
 
-## Installation
+- 🔥 **Firebase Integration**: Built-in support for Firebase Authentication and Cloud Firestore
+- 💬 **Real-time Messaging**: Instant message delivery and updates
+- 👥 **Group Chat Support**: Create and manage group conversations
+- 📱 **Modern UI**: Beautiful and customizable chat interface
+- 📸 **Media Support**: Send images, videos, and files
+- 🔍 **Message Search**: Search through chat history
+- 👤 **User Profiles**: Customizable user profiles with avatars
+- ⚡ **Performance Optimized**: Efficient message loading and caching
+- 🎨 **Themes**: Support for light and dark themes
+- 🌐 **Cross-Platform**: Works on iOS, Android, Web, and Desktop
 
-Add this to your package's `pubspec.yaml` file:
+## Getting Started 🚀
+
+### Prerequisites
+
+1. Set up Firebase in your Flutter project
+2. Add the required Firebase dependencies
+3. Initialize Firebase in your app
+
+### Installation
+
+Add ChatVerse to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
   chatverse: ^0.0.1
 ```
 
-## Firebase Setup
+### Basic Usage
 
-1. Create a new Firebase project
-2. Add your Flutter app to the Firebase project
-3. Download and add the `google-services.json` (Android) and `GoogleService-Info.plist` (iOS)
-4. Initialize Firebase in your app:
-
-```dart
-await Firebase.initializeApp();
-```
-
-## Usage
-
-### Basic Implementation
+1. **Initialize ChatVerse**
 
 ```dart
 import 'package:chatverse/chatverse.dart';
 
-// Initialize ChatController
-final chatController = ChatController(userId: 'current_user_id');
-
-// Use ChatView widget
-ChatView(
-  messages: chatController.messages,
-  currentUser: chatController.currentUser!,
-  users: users, // Map<String, ChatUser>
-  onSendMessage: (String message) {
-    chatController.sendMessage(content: message);
-  },
-  theme: ChatTheme(), // Optional custom theme
-);
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  
+  runApp(MyApp());
+}
 ```
 
-### Creating a Chat Room
+2. **Set up the Chat Provider**
 
 ```dart
-await chatController.createRoom(
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => ChatController(userId: 'current_user_id'),
+        ),
+      ],
+      child: MaterialApp(
+        // Your app configuration
+      ),
+    );
+  }
+}
+```
+
+3. **Display the Chat Screen**
+
+```dart
+class ChatScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: ChatView(
+        roomId: 'room_id',
+        currentUserId: 'current_user_id',
+      ),
+    );
+  }
+}
+```
+
+## Advanced Features 🔥
+
+### Group Chat Management
+
+```dart
+// Create a new group
+final group = await chatController.createRoom(
   name: 'Group Name',
   memberIds: ['user1', 'user2', 'user3'],
   type: ChatRoomType.group,
+  adminIds: ['user1'],
 );
-```
 
-### Sending Messages
-
-```dart
-// Send text message
-await chatController.sendMessage(content: 'Hello!');
-
-// Send image
-await chatController.sendMessage(
-  content: imageUrl,
-  type: MessageType.image,
-  attachments: {'caption': 'Check this out!'},
-);
-```
-
-### Customizing Theme
-
-```dart
-final customTheme = ChatTheme(
-  primaryColor: Colors.blue,
-  backgroundColor: Colors.white,
-  sentMessageColor: Colors.blue,
-  receivedMessageColor: Colors.grey[200],
-  // ... more customization options
-);
-```
-
-## Advanced Features
-
-### Group Management
-
-```dart
-// Add members
+// Add members to group
 await chatController.addMembers(['user4', 'user5']);
 
-// Remove members
-await chatController.removeMembers(['user4']);
+// Remove members from group
+await chatController.removeMembers(['user2']);
+```
 
-// Make admin
-await chatController.makeAdmin('user2');
+### Media Messages
+
+```dart
+// Send image message
+await chatController.sendMessage(
+  content: 'image_url',
+  type: MessageType.image,
+);
+
+// Send file message
+await chatController.sendMessage(
+  content: 'file_url',
+  type: MessageType.file,
+  metadata: {'fileName': 'document.pdf', 'size': '2.5MB'},
+);
 ```
 
 ### Message Features
 
 ```dart
-// Delete message
-await chatController.deleteMessage('messageId');
-
 // Reply to message
 await chatController.sendMessage(
   content: 'Reply message',
-  replyTo: 'originalMessageId',
+  replyTo: 'original_message_id',
+);
+
+// Delete message
+await chatController.deleteMessage('message_id');
+
+// Update message
+await chatController.updateMessage(
+  messageId: 'message_id',
+  content: 'Updated content',
 );
 ```
 
-## Contributing
+## Customization 🎨
 
-We welcome contributions! Please feel free to submit a Pull Request.
+### Theme Customization
 
-## License
+```dart
+ChatView(
+  theme: ChatTheme(
+    primaryColor: Colors.blue,
+    secondaryColor: Colors.grey[200],
+    userBubbleColor: Colors.blue,
+    otherBubbleColor: Colors.grey[300],
+    inputBackgroundColor: Colors.white,
+    // ... more theme options
+  ),
+)
+```
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+### Custom Bubble Builder
+
+```dart
+ChatView(
+  bubbleBuilder: (context, message, isUser) {
+    return CustomBubble(
+      message: message,
+      isUser: isUser,
+      // ... your custom bubble implementation
+    );
+  },
+)
+```
+
+## Example App 📱
+
+Check out our [example app](example/) for a complete implementation of ChatVerse features.
+
+## Contributing 🤝
+
+Contributions are welcome! Feel free to submit issues and pull requests.
+
+## Connect with Me 🌐
+
+- Twitter: [@hamedesam_dev](https://twitter.com/hamedesam_dev)
+- GitHub: [hamedessam](https://github.com/Hamed233)
+
+## License 📄
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments 🙏
+
+- Thanks to all contributors who have helped make ChatVerse better
+- Special thanks to the Flutter and Firebase teams for their amazing platforms

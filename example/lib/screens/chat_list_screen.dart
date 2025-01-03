@@ -7,8 +7,32 @@ import 'create_group_screen.dart';
 class ChatListScreen extends StatelessWidget {
   final Map<String, ChatUser> users;
   final String currentUserId;
+  final ChatController controller;
 
   const ChatListScreen({
+    Key? key,
+    required this.users,
+    required this.currentUserId,
+    required this.controller,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: controller,
+      child: _ChatListContent(
+        users: users,
+        currentUserId: currentUserId,
+      ),
+    );
+  }
+}
+
+class _ChatListContent extends StatelessWidget {
+  final Map<String, ChatUser> users;
+  final String currentUserId;
+
+  const _ChatListContent({
     Key? key,
     required this.users,
     required this.currentUserId,
@@ -16,80 +40,84 @@ class ChatListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Chats',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.group_add),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CreateGroupScreen(
-                    users: users,
-                    currentUserId: currentUserId,
-                  ),
+    return Consumer<ChatController>(
+      builder: (context, controller, _) {
+        if (controller.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (controller.rooms.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.chat_bubble_outline,
+                  size: 64,
+                  color: Colors.grey,
                 ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Consumer<ChatController>(
-        builder: (context, controller, _) {
-          if (controller.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+                const SizedBox(height: 16),
+                Text(
+                  'No chats yet',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.grey,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CreateGroupScreen(
+                          users: users,
+                          currentUserId: currentUserId,
+                          controller: controller,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Start a chat'),
+                ),
+              ],
+            ),
+          );
+        }
 
-          if (controller.rooms.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.chat_bubble_outline,
-                    size: 64,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No chats yet',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.grey,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CreateGroupScreen(
-                            users: users,
-                            currentUserId: currentUserId,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Start a chat'),
-                  ),
-                ],
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text(
+              'Chats',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.group_add),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CreateGroupScreen(
+                        users: users,
+                        currentUserId: currentUserId,
+                        controller: controller,
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          }
-
-          return ListView.builder(
+            ],
+          ),
+          body: ListView.builder(
             itemCount: controller.rooms.length,
             itemBuilder: (context, index) {
               final room = controller.rooms[index];
-              final otherUserId = room.memberIds
-                  .firstWhere((id) => id != currentUserId, orElse: () => '');
-              final otherUser = users[otherUserId];
+              final isGroup = room.type == ChatRoomType.group;
+              final otherUserId = isGroup
+                  ? null
+                  : room.memberIds.firstWhere((id) => id != currentUserId);
+              final otherUser = otherUserId != null ? users[otherUserId] : null;
               final lastMessage = room.lastMessage;
 
               return Dismissible(
@@ -107,25 +135,27 @@ class ChatListScreen extends StatelessWidget {
                 confirmDismiss: (direction) async {
                   return await showDialog(
                     context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Delete Chat?'),
-                      content: const Text(
-                        'Are you sure you want to delete this chat? This action cannot be undone.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text(
-                            'Delete',
-                            style: TextStyle(color: Colors.red),
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: Text(
+                            'Delete ${isGroup ? 'Group' : 'Chat'}?'),
+                        content: Text(
+                            'Are you sure you want to delete this ${isGroup ? 'group' : 'chat'}? This action cannot be undone.'),
+                        actions: <Widget>[
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text('Cancel'),
                           ),
-                        ),
-                      ],
-                    ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: const Text(
+                              'Delete',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 },
                 onDismissed: (direction) {
@@ -133,28 +163,27 @@ class ChatListScreen extends StatelessWidget {
                 },
                 child: ListTile(
                   leading: CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.grey[200],
-                    backgroundImage: room.type == ChatRoomType.individual
-                        ? NetworkImage(otherUser?.photoUrl ?? '')
-                        : null,
-                    child: room.type == ChatRoomType.group
-                        ? const Icon(Icons.group)
-                        : (otherUser?.photoUrl == null
-                            ? Text(
+                    backgroundColor: isGroup ? Colors.blue : Colors.grey[300],
+                    backgroundImage: isGroup
+                        ? null
+                        : (otherUser?.photoUrl?.isNotEmpty == true
+                            ? NetworkImage(otherUser!.photoUrl ?? '')
+                            : null),
+                    child: isGroup
+                        ? const Icon(Icons.group, color: Colors.white)
+                        : (otherUser?.photoUrl?.isNotEmpty == true
+                            ? null
+                            : Text(
                                 otherUser?.name.substring(0, 1).toUpperCase() ??
                                     '?',
                                 style: const TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
                                 ),
-                              )
-                            : null),
+                              )),
                   ),
                   title: Text(
-                    room.type == ChatRoomType.individual
-                        ? otherUser?.name ?? 'Unknown User'
-                        : room.name,
+                    isGroup ? room.name : (otherUser?.name ?? 'Unknown User'),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -178,7 +207,7 @@ class ChatListScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              _formatMessageTime(lastMessage.createdAt),
+                              _formatTimestamp(lastMessage.createdAt),
                               style: TextStyle(
                                 color: Colors.grey[500],
                                 fontSize: 12,
@@ -195,6 +224,7 @@ class ChatListScreen extends StatelessWidget {
                         builder: (context) => ChatScreen(
                           users: users,
                           currentUserId: currentUserId,
+                          controller: controller,
                         ),
                       ),
                     );
@@ -202,40 +232,41 @@ class ChatListScreen extends StatelessWidget {
                 ),
               );
             },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CreateGroupScreen(
-                users: users,
-                currentUserId: currentUserId,
-              ),
-            ),
-          );
-        },
-        child: const Icon(Icons.message),
-      ),
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CreateGroupScreen(
+                    users: users,
+                    currentUserId: currentUserId,
+                    controller: controller,
+                  ),
+                ),
+              );
+            },
+            child: const Icon(Icons.message),
+          ),
+        );
+      },
     );
   }
 
-  String _formatMessageTime(DateTime time) {
+  String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
-    final difference = now.difference(time);
+    final difference = now.difference(timestamp);
 
     if (difference.inDays > 7) {
-      return '${time.day}/${time.month}/${time.year}';
+      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
     } else if (difference.inDays > 0) {
-      return '${difference.inDays}d';
+      return '${difference.inDays}d ago';
     } else if (difference.inHours > 0) {
-      return '${difference.inHours}h';
+      return '${difference.inHours}h ago';
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m';
+      return '${difference.inMinutes}m ago';
     } else {
-      return 'now';
+      return 'Just now';
     }
   }
 }
