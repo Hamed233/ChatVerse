@@ -108,7 +108,8 @@ class _CreateGroupContentState extends State<_CreateGroupContent> {
 
                       return ListTile(
                         leading: CircleAvatar(
-                          backgroundImage: NetworkImage(user.photoUrl ?? 'https://i.pravatar.cc/150?img=1'),
+                          backgroundImage: NetworkImage(user.photoUrl ??
+                              'https://i.pravatar.cc/150?img=1'),
                           child: user.photoUrl!.isEmpty
                               ? Text(user.name[0].toUpperCase())
                               : null,
@@ -141,13 +142,12 @@ class _CreateGroupContentState extends State<_CreateGroupContent> {
                             // Create individual chat
                             controller
                                 .createRoom(
-                                  name: user.name,
-                                  memberIds: [widget.currentUserId, user.id],
-                                  type: ChatRoomType.individual,
-                                  adminIds: [widget.currentUserId],
-                                  createdAt: DateTime.now(),
-                                  updatedAt: DateTime.now()
-                                )
+                                    name: user.name,
+                                    memberIds: [widget.currentUserId, user.id],
+                                    type: ChatRoomType.individual,
+                                    adminIds: [widget.currentUserId],
+                                    createdAt: DateTime.now(),
+                                    updatedAt: DateTime.now())
                                 .then((_) {
                               Navigator.pop(context);
                             });
@@ -168,13 +168,12 @@ class _CreateGroupContentState extends State<_CreateGroupContent> {
                       final members = [..._selectedUsers, widget.currentUserId];
                       controller
                           .createRoom(
-                            name: _nameController.text.trim(),
-                            memberIds: members,
-                            type: ChatRoomType.group,
-                            adminIds: [widget.currentUserId],
-                             createdAt: DateTime.now(),
-                                  updatedAt: DateTime.now()
-                          )
+                              name: _nameController.text.trim(),
+                              memberIds: members,
+                              type: ChatRoomType.group,
+                              adminIds: [widget.currentUserId],
+                              createdAt: DateTime.now(),
+                              updatedAt: DateTime.now())
                           .then((_) {
                         Navigator.pop(context);
                       });

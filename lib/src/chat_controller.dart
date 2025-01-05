@@ -10,7 +10,7 @@ class ChatController extends ChangeNotifier {
   final ChatService _chatService;
   final AuthService _authService;
   final String userId;
-  
+
   ChatRoom? _currentRoom;
   List<Message> _messages = [];
   List<ChatRoom> _rooms = [];
@@ -19,13 +19,13 @@ class ChatController extends ChangeNotifier {
   Timer? _typingTimer;
   StreamSubscription? _messagesSubscription;
   StreamSubscription? _roomsSubscription;
-  
+
   ChatController({
     required this.userId,
     ChatService? chatService,
     AuthService? authService,
-  }) : _chatService = chatService ?? ChatService(userId: userId),
-       _authService = authService ?? AuthService() {
+  })  : _chatService = chatService ?? ChatService(userId: userId),
+        _authService = authService ?? AuthService() {
     _init();
   }
 
@@ -73,16 +73,17 @@ class ChatController extends ChangeNotifier {
   set currentRoom(ChatRoom? room) {
     if (_currentRoom?.id != room?.id) {
       _currentRoom = room;
+      _messages = []; // Clear messages when changing rooms
+      notifyListeners(); // Notify immediately to clear UI
+
       if (room != null) {
         _messagesSubscription?.cancel();
-        _messagesSubscription = _chatService
-            .getMessages(room.id)
-            .listen((msgs) {
+        _messagesSubscription =
+            _chatService.getMessages(room.id).listen((msgs) {
           _messages = msgs;
           notifyListeners();
         });
       }
-      notifyListeners();
     }
   }
 
@@ -93,21 +94,61 @@ class ChatController extends ChangeNotifier {
   }) async {
     if (_currentRoom == null) return;
 
-    try {
-      final message = Message(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        roomId: _currentRoom!.id,
-        senderId: userId,
-        senderName: _currentRoom!.name,
-        content: content,
-        type: type,
-        metadata: metadata,
-        createdAt: DateTime.now(),
-      );
+    final newMessage = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      roomId: _currentRoom!.id,
+      senderId: userId,
+      senderName: _currentUser?.name ?? 'Unknown User',
+      content: content,
+      type: type,
+      createdAt: DateTime.now(),
+      metadata: metadata,
+    );
 
-      await _chatService.sendMessage(message);
+    try {
+      // Add message to local list immediately for UI responsiveness
+      _messages = [..._messages, newMessage];
+      notifyListeners();
+
+      // Send message to service
+      await _chatService.sendMessage(newMessage);
     } catch (e) {
-      debugPrint('Error sending message: $e');
+      // Remove message from local list if sending failed
+      _messages = _messages.where((m) => m.id != newMessage.id).toList();
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> sendMediaMessage({
+    required String url,
+    required MessageType type,
+    required Map<String, dynamic> metadata,
+  }) async {
+    if (_currentRoom == null) return;
+
+    final newMessage = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      roomId: _currentRoom!.id,
+      senderId: userId,
+      senderName: _currentUser?.name ?? 'Unknown User',
+      content: url,
+      type: type,
+      createdAt: DateTime.now(),
+      metadata: metadata,
+    );
+
+    try {
+      // Add message to local list immediately for UI responsiveness
+      _messages = [..._messages, newMessage];
+      notifyListeners();
+
+      // Send message to service
+      await _chatService.sendMessage(newMessage);
+    } catch (e) {
+      // Remove message from local list if sending failed
+      _messages = _messages.where((m) => m.id != newMessage.id).toList();
+      notifyListeners();
       rethrow;
     }
   }
@@ -178,7 +219,7 @@ class ChatController extends ChangeNotifier {
         throw Exception('No room selected');
       }
       await _chatService.removeMembers(_currentRoom!.id, memberIds);
-      
+
       // If the current user is being removed, close the chat
       if (memberIds.contains(userId)) {
         _currentRoom = null;

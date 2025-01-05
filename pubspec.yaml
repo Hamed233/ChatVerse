@@ -1,6 +1,6 @@
 name: chatverse
 description: A comprehensive Flutter chat library with Firebase integration, featuring advanced UI, group chat support, and real-time messaging capabilities.
-version: 0.0.2
+version: 0.0.3
 homepage: https://github.com/Hamed233/ChatVerse
 repository: https://github.com/Hamed233/ChatVerse
 issue_tracker: https://github.com/Hamed233/ChatVerse/issues
@@ -24,11 +24,13 @@ dependencies:
   image_picker: ^1.0.5
   file_picker: ^6.1.1
   path_provider: ^2.1.1
+  path: ^1.8.3
+  permission_handler: ^11.1.0
   flutter_chat_bubble: ^2.0.2
   timeago: ^3.6.0
   flutter_linkify: ^6.0.0
   url_launcher: ^6.2.2
-  emoji_picker_flutter: ^1.6.3
+  emoji_picker_flutter: ^4.2.0
 
 dev_dependencies:
   flutter_test:

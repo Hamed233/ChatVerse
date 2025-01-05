@@ -138,7 +138,7 @@ class _ChatAppState extends State<ChatApp> {
     _chatController = ChatController(
       userId: _userId,
       chatService: ChatService(userId: _userId),
-      authService: AuthService(),
+      // authService: AuthService(),
     );
   }
 
@@ -150,6 +150,7 @@ class _ChatAppState extends State<ChatApp> {
         users: _users,
         currentUserId: _userId,
         controller: _chatController,
+        theme: ChatTheme(),
       ),
     );
   }

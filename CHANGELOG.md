@@ -1,3 +1,10 @@
+## 0.0.3
+
+### Improvements
+- Improve UI/UX performance
+- Add Firebase Storage to upload files, images in chat
+
+
 ## 0.0.2
 
 ### Fixed
