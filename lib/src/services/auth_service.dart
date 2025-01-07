@@ -26,6 +26,18 @@ class AuthService {
     return ChatUser.fromJson(doc.data()!);
   }
 
+  Future<void> createUser(Map<String, dynamic> userData) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No user signed in');
+
+    final docRef = _firestore.collection('users').doc(user.uid);
+    await docRef.set({
+      ...userData,
+      'lastSeen': Timestamp.fromDate(userData['lastSeen'] as DateTime),
+      'createdAt': Timestamp.fromDate(userData['createdAt'] as DateTime),
+    });
+  }
+
   Future<void> updateUserProfile({
     String? name,
     String? photoUrl,
@@ -34,12 +46,22 @@ class AuthService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No user signed in');
 
-    final updates = <String, dynamic>{};
+    final updates = <String, dynamic>{
+      'lastSeen': Timestamp.now(),
+    };
     if (name != null) updates['name'] = name;
     if (photoUrl != null) updates['photoUrl'] = photoUrl;
     if (metadata != null) updates['metadata'] = metadata;
 
     await _firestore.collection('users').doc(user.uid).update(updates);
+
+    // Also update Firebase Auth profile if needed
+    if (name != null || photoUrl != null) {
+      await user.updateProfile(
+        displayName: name,
+        photoURL: photoUrl,
+      );
+    }
   }
 
   Future<void> updateOnlineStatus(bool isOnline) async {
@@ -52,6 +74,41 @@ class AuthService {
     });
   }
 
+  Stream<List<ChatUser>> getAllUsers() {
+    return _firestore
+        .collection('users')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) {
+              try {
+                final data = doc.data();
+                data['id'] = doc.id;
+                return ChatUser.fromJson(data);
+              } catch (e) {
+                print('Error parsing user data: $e');
+                return null;
+              }
+            })
+            .where((user) => user != null)
+            .cast<ChatUser>()
+            .toList());
+  }
+
+  Future<void> createOrUpdateUser(User firebaseUser) async {
+    final userDoc = _firestore.collection('users').doc(firebaseUser.uid);
+    final userData = {
+      'id': firebaseUser.uid,
+      'name': firebaseUser.displayName ?? 'User',
+      'email': firebaseUser.email,
+      'photoUrl': firebaseUser.photoURL,
+      'isOnline': true,
+      'lastSeen': Timestamp.now(),
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    await userDoc.set(userData, SetOptions(merge: true));
+  }
+
   Future<List<ChatUser>> searchUsers(String query) async {
     final snapshot = await _firestore
         .collection('users')
@@ -59,13 +116,63 @@ class AuthService {
         .where('name', isLessThanOrEqualTo: query + '\uf8ff')
         .get();
 
-    return snapshot.docs
-        .map((doc) => ChatUser.fromJson(doc.data()))
-        .toList();
+    return snapshot.docs.map((doc) => ChatUser.fromJson(doc.data())).toList();
+  }
+
+  // Authentication methods
+  Future<User?> signInWithEmailAndPassword(String email, String password) async {
+    try {
+      final result = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return result.user;
+    } catch (e) {
+      print('Error signing in: $e');
+      rethrow;
+    }
+  }
+
+  Future<User?> registerWithEmailAndPassword(
+    String email,
+    String password,
+    String name,
+  ) async {
+    try {
+      final result = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      if (result.user != null) {
+        // Update display name
+        await result.user!.updateProfile(displayName: name);
+        
+        // Create user document
+        await createUser({
+          'id': result.user!.uid,
+          'name': name,
+          'email': email,
+          'isOnline': true,
+          'lastSeen': DateTime.now(),
+          'createdAt': DateTime.now(),
+        });
+      }
+      
+      return result.user;
+    } catch (e) {
+      print('Error registering: $e');
+      rethrow;
+    }
   }
 
   Future<void> signOut() async {
-    await updateOnlineStatus(false);
-    await _auth.signOut();
+    try {
+      await updateOnlineStatus(false);
+      await _auth.signOut();
+    } catch (e) {
+      print('Error signing out: $e');
+      rethrow;
+    }
   }
 }

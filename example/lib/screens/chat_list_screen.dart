@@ -1,36 +1,96 @@
+import 'package:chatverse_example/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:chatverse/chatverse.dart';
-import 'package:provider/provider.dart';
 import 'chat_screen.dart';
-import 'create_group_screen.dart';
 
-class ChatListScreen extends StatelessWidget {
-  final Map<String, ChatUser> users;
-  final String currentUserId;
-  final ChatController controller;
-  final ChatTheme theme;
+class ChatListScreen extends StatefulWidget {
+  final String userId;
 
   const ChatListScreen({
-    super.key,
-    required this.users,
-    required this.currentUserId,
-    required this.controller,
-    required this.theme,
-  });
+    Key? key,
+    required this.userId,
+  }) : super(key: key);
+
+  @override
+  State<ChatListScreen> createState() => _ChatListScreenState();
+}
+
+class _ChatListScreenState extends State<ChatListScreen> {
+  late ChatController _chatController;
+  late ChatTheme _theme;
+  late AuthService _authService;
+  Map<String, ChatUser> _usersMap = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _authService = AuthService();
+    _chatController = ChatController(
+      userId: widget.userId,
+      chatService: ChatService(userId: widget.userId),
+      authService: _authService,
+    );
+    _theme = ChatTheme();
+
+    // Convert users list to map when controller updates
+    _chatController.addListener(_updateUsersMap);
+  }
+
+  void _updateUsersMap() {
+    setState(() {
+      _usersMap = {
+        for (var user in _chatController.users) user.id: user,
+      };
+    });
+  }
+
+  @override
+  void dispose() {
+    _chatController.removeListener(_updateUsersMap);
+    _chatController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _signOut() async {
+    try {
+      // First try to update online status
+      try {
+        await _authService.updateOnlineStatus(false);
+      } catch (e) {
+        // Ignore errors when updating online status
+        debugPrint('Warning: Could not update online status: $e');
+      }
+
+      // Then sign out
+      await _authService.signOut();
+      
+      // Navigate to login screen
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false, // Remove all previous routes
+        );
+      }
+    } catch (e) {
+      debugPrint('Error signing out: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing out: $e')),
+        );
+      }
+    }
+  }
 
   void _navigateToChatScreen(BuildContext context, ChatRoom room) {
-    // Set the current room before navigation
-    controller.currentRoom = room;
-    
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ChatScreen(
           room: room,
-          users: users,
-          currentUserId: currentUserId,
-          controller: controller,
-          theme: theme,
+          users: _usersMap,
+          currentUserId: widget.userId,
+          controller: _chatController,
+          theme: _theme,
         ),
       ),
     );
@@ -38,141 +98,33 @@ class ChatListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: controller,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            'Chats',
-            style: TextStyle(color: theme.textColor),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Chats'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _signOut,
           ),
-          backgroundColor: theme.backgroundColor,
-          elevation: 0,
-          actions: [
-            IconButton(
-              icon: Icon(Icons.search, color: theme.textColor),
-              onPressed: () {
-                // TODO: Implement global search
-              },
-            ),
-            IconButton(
-              icon: Icon(Icons.more_vert, color: theme.textColor),
-              onPressed: () {
-                // TODO: Implement menu options
-              },
-            ),
-          ],
-        ),
-        body: Consumer<ChatController>(
-          builder: (context, controller, _) {
-            if (controller.isLoading) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
-
-            return ChatListView(
-              users: users,
-              currentUserId: currentUserId,
-              controller: controller,
-              theme: theme,
-              onRoomTap: (room) => _navigateToChatScreen(context, room),
-              onRoomDelete: (room) async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      title: Text(
-                        'Delete ${room.type == ChatRoomType.group ? 'Group' : 'Chat'}?',
-                      ),
-                      content: Text(
-                        'Are you sure you want to delete this ${room.type == ChatRoomType.group ? 'group' : 'chat'}? '
-                        'This action cannot be undone.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(false),
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(
-                                color: Theme.of(context)
-                                    .textTheme
-                                    .bodyLarge
-                                    ?.color),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(true),
-                          child: Text(
-                            'Delete',
-                            style: TextStyle(
-                                color: Theme.of(context).colorScheme.error),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                );
-
-                if (confirmed == true) {
-                  controller.deleteRoom();
-                }
-              },
-              emptyBuilder: (context, type) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      type == ChatRoomType.group
-                          ? Icons.group
-                          : Icons.chat_bubble_outline,
-                      size: 64,
-                      color: Theme.of(context).disabledColor,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      type == ChatRoomType.group
-                          ? 'No group chats yet'
-                          : 'No chats yet',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Theme.of(context).disabledColor,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: () =>
-                          _navigateToCreateGroup(context, controller),
-                      icon: const Icon(Icons.add),
-                      label: Text(
-                        type == ChatRoomType.group
-                            ? 'Create a group'
-                            : 'Start a chat',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => _navigateToCreateGroup(context, controller),
-          backgroundColor: theme.primaryColor,
-          child: const Icon(Icons.message),
-        ),
+        ],
       ),
-    );
-  }
-
-  void _navigateToCreateGroup(BuildContext context, ChatController controller) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CreateGroupScreen(
-          users: users,
-          currentUserId: currentUserId,
-          controller: controller,
-        ),
+      body: ChatListView(
+        controller: _chatController,
+        theme: _theme,
+        onRoomTap: (room) => _navigateToChatScreen(context, room),
+        users: _usersMap,
+        currentUserId: widget.userId,
+      ),
+      floatingActionButton: NewChatFAB(
+        controller: _chatController,
+        theme: _theme,
+        onChatCreated: (chatId) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Chat created successfully!')),
+            );
+          }
+        },
       ),
     );
   }

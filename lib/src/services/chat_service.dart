@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/message.dart';
 import '../models/chat_room.dart';
+import '../models/chat_user.dart';
 
 class ChatService {
   final String userId;
@@ -158,5 +159,25 @@ class ChatService {
 
   Future<void> updateRoom(ChatRoom room) async {
     await _firestore.collection('rooms').doc(room.id).update(room.toMap());
+  }
+
+  // User Operations
+  Stream<Map<String, ChatUser>> getUsers() {
+    return _firestore
+        .collection('users')
+        .snapshots()
+        .map((snapshot) {
+      final Map<String, ChatUser> users = {};
+      for (var doc in snapshot.docs) {
+        try {
+          final data = doc.data();
+          data['id'] = doc.id;
+          users[doc.id] = ChatUser.fromJson(Map<String, dynamic>.from(data));
+        } catch (e) {
+          print('Error parsing user data: $e');
+        }
+      }
+      return users;
+    });
   }
 }

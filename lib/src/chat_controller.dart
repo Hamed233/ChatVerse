@@ -14,11 +14,13 @@ class ChatController extends ChangeNotifier {
   ChatRoom? _currentRoom;
   List<Message> _messages = [];
   List<ChatRoom> _rooms = [];
+  List<ChatUser> _users = [];
   ChatUser? _currentUser;
   bool _isLoading = false;
   Timer? _typingTimer;
   StreamSubscription? _messagesSubscription;
   StreamSubscription? _roomsSubscription;
+  StreamSubscription? _usersSubscription;
 
   ChatController({
     required this.userId,
@@ -33,6 +35,7 @@ class ChatController extends ChangeNotifier {
   ChatRoom? get currentRoom => _currentRoom;
   List<Message> get messages => _messages;
   List<ChatRoom> get rooms => _rooms;
+  List<ChatUser> get users => _users;
   ChatUser? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
 
@@ -48,6 +51,13 @@ class ChatController extends ChangeNotifier {
       _roomsSubscription?.cancel();
       _roomsSubscription = _chatService.getRooms().listen((updatedRooms) {
         _rooms = updatedRooms;
+        notifyListeners();
+      });
+
+      // Listen to users
+      _usersSubscription?.cancel();
+      _usersSubscription = _authService.getAllUsers().listen((updatedUsers) {
+        _users = updatedUsers;
         notifyListeners();
       });
 
@@ -241,11 +251,84 @@ class ChatController extends ChangeNotifier {
     });
   }
 
+  // User registration and management
+  Future<void> registerUser({
+    required String id,
+    required String name,
+    String? email,
+    String? photoUrl,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      final userDoc = await _authService.getCurrentUser();
+      
+      // If user already exists, just update their data
+      if (userDoc != null) {
+        await _authService.updateUserProfile(
+          name: name,
+          photoUrl: photoUrl,
+          metadata: metadata,
+        );
+        return;
+      }
+
+      // Create a new user document in Firestore
+      final userData = {
+        'id': id,
+        'name': name,
+        'email': email,
+        'photoUrl': photoUrl,
+        'isOnline': true,
+        'lastSeen': DateTime.now(),
+        'createdAt': DateTime.now(),
+        if (metadata != null) 'metadata': metadata,
+      };
+
+      await _authService.createUser(userData);
+
+      // Update current user
+      _currentUser = ChatUser.fromJson(userData);
+      notifyListeners();
+    } catch (e) {
+      print('Error registering user: $e');
+      rethrow;
+    }
+  }
+
+  // Update user's online status
+  Future<void> updateOnlineStatus(bool isOnline) async {
+    try {
+      await _authService.updateOnlineStatus(isOnline);
+    } catch (e) {
+      print('Error updating online status: $e');
+      rethrow;
+    }
+  }
+
+  // Update user profile
+  Future<void> updateUserProfile({
+    String? name,
+    String? photoUrl,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      await _authService.updateUserProfile(
+        name: name,
+        photoUrl: photoUrl,
+        metadata: metadata,
+      );
+    } catch (e) {
+      print('Error updating user profile: $e');
+      rethrow;
+    }
+  }
+
   @override
   void dispose() {
     _typingTimer?.cancel();
     _messagesSubscription?.cancel();
     _roomsSubscription?.cancel();
+    _usersSubscription?.cancel();
     super.dispose();
   }
 }
