@@ -33,7 +33,73 @@ class ChatController extends ChangeNotifier {
 
   // Getters
   ChatRoom? get currentRoom => _currentRoom;
-  List<Message> get messages => _messages;
+
+  set currentRoom(ChatRoom? room) {
+
+
+    if (_currentRoom?.id == room?.id) {
+      debugPrint('ChatController: Room ID unchanged, skipping update');
+      return;
+    }
+
+    debugPrint('ChatController: Switching room from ${_currentRoom?.id} to ${room?.id}');
+
+    // Cancel existing subscription if any
+    _messagesSubscription?.cancel();
+    _messagesSubscription = null;
+
+    // Clear messages when changing rooms
+    _messages = const [];
+    _currentRoom = room;
+
+
+    if (room != null ) {
+      debugPrint('ChatController: Subscribing to messages for room ${room.id}');
+      // Subscribe to messages for the new room
+      _messagesSubscription = _chatService
+          .getMessages(room.id)
+          .listen(
+            (messages) {
+             
+              
+              if (_currentRoom?.id != room.id) {
+                debugPrint('ChatController: Skipping message update - room changed');
+                return;
+              }
+
+              try {
+                debugPrint('ChatController: Updating messages for room ${room.id}');
+                _messages = List.unmodifiable(messages);
+               
+                  notifyListeners();
+               
+              } catch (e, stackTrace) {
+                debugPrint('ChatController: Error updating messages: $e');
+                debugPrint('ChatController: Stack trace: $stackTrace');
+              }
+            },
+            onError: (error) {
+              debugPrint('ChatController: Error in message subscription: $error');
+            },
+            cancelOnError: false,
+          );
+    }
+  }
+
+  void _handleNewMessages(List<Message> messages) {
+    
+    final currentRoomId = _currentRoom?.id;
+    if (currentRoomId == null) return;
+
+    // Only update messages if we're still in the same room
+    if (messages.isNotEmpty && messages.first.roomId == currentRoomId) {
+      debugPrint('ChatController: Updating messages for room $currentRoomId');
+      _messages = List.unmodifiable(messages);
+      notifyListeners();
+    }
+  }
+
+  List<Message> get messages => List.unmodifiable(_messages);
   List<ChatRoom> get rooms => _rooms;
   List<ChatUser> get users => _users;
   ChatUser? get currentUser => _currentUser;
@@ -66,9 +132,8 @@ class ChatController extends ChangeNotifier {
         _messagesSubscription?.cancel();
         _messagesSubscription = _chatService
             .getMessages(_currentRoom!.id)
-            .listen((updatedMessages) {
-          _messages = updatedMessages;
-          notifyListeners();
+            .listen(_handleNewMessages, onError: (error) {
+          debugPrint('Error in message subscription: $error');
         });
       }
     } catch (e) {
@@ -79,53 +144,33 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  // Setter for currentRoom
-  set currentRoom(ChatRoom? room) {
-    if (_currentRoom?.id != room?.id) {
-      _currentRoom = room;
-      _messages = []; // Clear messages when changing rooms
-      notifyListeners(); // Notify immediately to clear UI
-
-      if (room != null) {
-        _messagesSubscription?.cancel();
-        _messagesSubscription =
-            _chatService.getMessages(room.id).listen((msgs) {
-          _messages = msgs;
-          notifyListeners();
-        });
-      }
-    }
-  }
-
   Future<void> sendMessage({
     required String content,
     MessageType type = MessageType.text,
     Map<String, dynamic>? metadata,
   }) async {
-    if (_currentRoom == null) return;
-
-    final newMessage = Message(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      roomId: _currentRoom!.id,
-      senderId: userId,
-      senderName: _currentUser?.name ?? 'Unknown User',
-      content: content,
-      type: type,
-      createdAt: DateTime.now(),
-      metadata: metadata,
-    );
+    if (_currentRoom == null ) return;
 
     try {
-      // Add message to local list immediately for UI responsiveness
-      _messages = [..._messages, newMessage];
-      notifyListeners();
+      debugPrint('Adding message to local list...');
+      final message = Message(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        roomId: _currentRoom!.id,
+        senderId: userId,
+        senderName: _currentUser?.name ?? 'Unknown User',
+        content: content,
+        type: type,
+        createdAt: DateTime.now(),
+        metadata: metadata,
+      );
 
-      // Send message to service
-      await _chatService.sendMessage(newMessage);
-    } catch (e) {
-      // Remove message from local list if sending failed
-      _messages = _messages.where((m) => m.id != newMessage.id).toList();
-      notifyListeners();
+      // Add message to Firestore
+      await _chatService.sendMessage(message);
+      debugPrint('Message sent successfully!');
+    
+    } catch (e, stackTrace) {
+      debugPrint('ChatController: Error sending message: $e');
+      debugPrint('ChatController: Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -163,27 +208,84 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  Future<ChatRoom> createRoom({
-    required String name,
-    required List<String> memberIds,
-    required ChatRoomType type,
-    required List<String> adminIds,
-    required DateTime createdAt,
-    required DateTime updatedAt,
-  }) async {
+  Future<ChatRoom> createRoom(ChatRoom room) async {
     try {
-      final room = await _chatService.createRoom(
-        name: name,
-        memberIds: memberIds,
-        type: type,
-        adminIds: adminIds,
-      );
-      return room;
-    } catch (e) {
-      debugPrint('Error creating room: $e');
+      debugPrint('ChatController: Creating room...');
+      debugPrint('ChatController: Room data: ${room.toMap()}');
+
+      // Create the room in Firestore
+      final createdRoom = await _chatService.createRoom(room);
+      debugPrint('ChatController: Room created in Firestore: ${createdRoom.id}');
+
+      // Add the room to the local list if we're still mounted
+        _rooms = [createdRoom, ..._rooms];
+        notifyListeners();
+
+      debugPrint('ChatController: Room created successfully!');
+      return createdRoom;
+    } catch (e, stackTrace) {
+      debugPrint('ChatController: Error creating room: $e');
+      debugPrint('ChatController: Stack trace: $stackTrace');
       rethrow;
     }
   }
+
+  Future<ChatRoom> findOrCreateRoom({
+    required String otherUserId,
+    required ChatRoomType type,
+    String? name,
+    String? photoUrl,
+  }) async {
+    try {
+      debugPrint('ChatController: Finding or creating room...');
+      
+      // For individual chats, check if room exists
+      if (type == ChatRoomType.individual) {
+        final existingRoom = _rooms.firstWhere(
+          (room) =>
+              room.type == ChatRoomType.individual &&
+              room.memberIds.length == 2 &&
+              room.memberIds.contains(otherUserId) &&
+              room.memberIds.contains(userId),
+          orElse: () => throw StateError('Room not found'),
+        );
+        return existingRoom;
+      }
+
+      // For group chats, always create a new room
+      final room = ChatRoom(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name ?? 'New Group',
+        photoUrl: photoUrl,
+        type: type,
+        memberIds: [userId, otherUserId],
+        adminIds: [userId],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      return await createRoom(room);
+    } catch (e) {
+      if (e is StateError) {
+        // Create new individual chat room
+        final otherUser = users.firstWhere((u) => u.id == otherUserId);
+        final room = ChatRoom(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: otherUser.name,
+          photoUrl: otherUser.photoUrl,
+          type: ChatRoomType.individual,
+          memberIds: [userId, otherUserId],
+          adminIds: [userId],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        return await createRoom(room);
+      }
+      rethrow;
+    }
+  }
+
 
   Future<void> deleteRoom() async {
     if (_currentRoom == null) return;
@@ -261,7 +363,7 @@ class ChatController extends ChangeNotifier {
   }) async {
     try {
       final userDoc = await _authService.getCurrentUser();
-      
+
       // If user already exists, just update their data
       if (userDoc != null) {
         await _authService.updateUserProfile(
@@ -325,10 +427,11 @@ class ChatController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _typingTimer?.cancel();
+    debugPrint('ChatController: Disposing controller');
     _messagesSubscription?.cancel();
-    _roomsSubscription?.cancel();
-    _usersSubscription?.cancel();
+    _messagesSubscription = null;
+    _currentRoom = null;
+    _messages = const [];
     super.dispose();
   }
 }

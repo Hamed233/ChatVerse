@@ -34,7 +34,7 @@ class NewChatFAB extends StatelessWidget {
           controller: controller,
           theme: theme,
           onChatCreated: (chatId) {
-            Navigator.pop(context);
+            // Navigator.pop(context);
             onChatCreated?.call(chatId);
           },
           // scrollController: scrollController,

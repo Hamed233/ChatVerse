@@ -1,3 +1,4 @@
+import 'package:chatverse/src/widgets/group_details_view.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/chat_room.dart';
@@ -17,7 +18,7 @@ class ChatView extends StatefulWidget {
   final Widget Function(BuildContext, Message)? messageBuilder;
   final Widget Function(BuildContext, ChatUser)? userBuilder;
   final Widget Function(BuildContext, DateTime)? dateBuilder;
-  final Widget? appBar;
+  final PreferredSizeWidget? appBar;
 
   const ChatView({
     super.key,
@@ -41,16 +42,47 @@ class _ChatViewState extends State<ChatView> {
   bool _showScrollToBottom = false;
   bool _isAtBottom = true;
   DateTime? _lastMessageDate;
+  late ChatController _chatController;
 
   @override
   void initState() {
     super.initState();
+    _chatController = widget.controller;
     _scrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+    // Set the current room after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        debugPrint('ChatView: Setting current room to ${widget.room.id}');
+        _chatController.currentRoom = widget.room;
+        _scrollToBottom();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(ChatView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller || oldWidget.room.id != widget.room.id) {
+      _chatController = widget.controller;
+      // Update the current room after the frame
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          debugPrint('ChatView: Updating current room to ${widget.room.id}');
+          _chatController.currentRoom = widget.room;
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    debugPrint('ChatView: Disposing view for room ${widget.room.id}');
+    // Only clear the current room if we're still showing this room
+    if (mounted && _chatController.currentRoom?.id == widget.room.id) {
+      _chatController.currentRoom = null;
+    }
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -199,7 +231,7 @@ class _ChatViewState extends State<ChatView> {
         final fileName = message.metadata?['fileName'] as String? ?? 'File';
         final fileSize = message.metadata?['fileSize'] as int? ?? 0;
         final fileSizeStr = _formatFileSize(fileSize);
-        
+
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -353,111 +385,199 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        if (widget.appBar != null) widget.appBar!,
-        Expanded(
-          child: Stack(
-            children: [
-              Consumer<ChatController>(
-                builder: (context, chatController, _) {
-                  if (chatController.messages.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.chat_bubble_outline,
-                            size: 48,
-                            color: widget.theme.textColor.withOpacity(0.5),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No messages yet',
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: widget.theme.backgroundColor,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: widget.room.type == ChatRoomType.group
+          ? GestureDetector(
+              onTap: () => _showGroupDetails(),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: widget.theme.primaryColor,
+                    backgroundImage: widget.room.photoUrl != null
+                        ? NetworkImage(widget.room.photoUrl!)
+                        : null,
+                    child: widget.room.photoUrl == null
+                        ? Text(
+                            widget.room.name[0].toUpperCase(),
                             style: TextStyle(
-                              color: widget.theme.textColor.withOpacity(0.7),
-                              fontSize: 16,
+                              color: widget.theme.backgroundColor,
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    controller: _scrollController,
-                    reverse: true,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-                    itemCount: chatController.messages.length,
-                    itemBuilder: (context, index) {
-                      final message = chatController.messages[chatController.messages.length - 1 - index];
-                      final isMe = message.senderId == widget.currentUserId;
-                      final sender = widget.users[message.senderId] ??
-                          ChatUser(
-                            id: message.senderId,
-                            name: 'Unknown User',
-                            photoUrl: null,
-                          );
-
-                      final messageDate = DateTime(
-                        message.createdAt.year,
-                        message.createdAt.month,
-                        message.createdAt.day,
-                      );
-
-                      final widgets = <Widget>[];
-
-                      if (_lastMessageDate == null ||
-                          messageDate != _lastMessageDate) {
-                        widgets.add(_buildDateSeparator(messageDate));
-                        _lastMessageDate = messageDate;
-                      }
-
-                      widgets.add(_buildMessage(message, isMe, sender));
-
-                      return Column(children: widgets);
-                    },
-                  );
-                },
-              ),
-              if (_showScrollToBottom)
-                Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: FloatingActionButton(
-                    mini: true,
-                    backgroundColor: widget.theme.primaryColor.withOpacity(0.9),
-                    onPressed: _scrollToBottom,
-                    child: const Icon(Icons.keyboard_arrow_down,
-                        color: Colors.white),
+                          )
+                        : null,
                   ),
-                ),
-            ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.room.name,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                        Text(
+                          '${widget.room.memberIds.length} members',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: widget.theme.textColor.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : Text(widget.room.name),
+      actions: [
+        if (widget.room.type == ChatRoomType.group)
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: _showGroupDetails,
           ),
-        ),
-        ChatInput(
-          onSendMessage: (content) {
-            widget.controller.sendMessage(
-              content: content,
-              type: MessageType.text,
-            );
-            _scrollToBottom();
-          },
-          onSendMedia: (url, type, metadata) {
-            widget.controller.sendMediaMessage(
-              url: url,
-              type: type,
-              metadata: metadata,
-            );
-            _scrollToBottom();
-          },
-          currentUserId: widget.currentUserId,
-          roomId: widget.room.id,
-          theme: widget.theme,
-        ),
       ],
     );
+  }
+
+  void _showGroupDetails() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupDetailsView(
+          room: widget.room,
+          users: widget.users,
+          currentUserId: widget.currentUserId,
+          controller: widget.controller,
+          theme: widget.theme,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+        appBar: widget.appBar ?? _buildAppBar(),
+        body: ChangeNotifierProvider.value(
+            value: widget.controller,
+            child: Column(
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Consumer<ChatController>(
+                        builder: (context, chatController, _) {
+                          final messages = chatController.messages;
+
+                          if (messages.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.chat_bubble_outline,
+                                    size: 48,
+                                    color:
+                                        widget.theme.textColor.withOpacity(0.5),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No messages yet',
+                                    style: TextStyle(
+                                      color: widget.theme.textColor
+                                          .withOpacity(0.7),
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            controller: _scrollController,
+                            reverse: true,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: messages.length,
+                            itemBuilder: (context, index) {
+                              final message = messages[index];
+                              final isMe =
+                                  message.senderId == widget.currentUserId;
+                              final sender = widget.users[message.senderId] ??
+                                  ChatUser(
+                                    id: message.senderId,
+                                    name: message.senderName,
+                                    email: '',
+                                  );
+
+                              return _buildMessage(message, isMe, sender);
+                            },
+                          );
+                        },
+                      ),
+                      if (_showScrollToBottom)
+                        Positioned(
+                          right: 16,
+                          bottom: 16,
+                          child: FloatingActionButton(
+                            mini: true,
+                            backgroundColor: widget.theme.backgroundColor,
+                            onPressed: _scrollToBottom,
+                            child: Icon(
+                              Icons.arrow_downward,
+                              color: widget.theme.primaryColor,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                ChatInput(
+                  onSendMessage: (content) async {
+                    try {
+                      await _chatController.sendMessage(
+                        content: content,
+                        type: MessageType.text,
+                      );
+                      if (_isAtBottom) {
+                        _scrollToBottom();
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error sending message: $e')),
+                        );
+                      }
+                    }
+                  },
+                  onSendMedia: (url, type, metadata) async {
+                    try {
+                      await _chatController.sendMessage(
+                        content: url,
+                        type: type,
+                        metadata: metadata,
+                      );
+                      if (_isAtBottom) {
+                        _scrollToBottom();
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error sending media: $e')),
+                        );
+                      }
+                    }
+                  },
+                  theme: widget.theme,
+                  currentUserId: widget.currentUserId,
+                  roomId: widget.room.id,
+                ),
+              ],
+            )));
   }
 }

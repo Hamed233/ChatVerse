@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../models/chat_room.dart';
 import '../models/chat_user.dart';
@@ -41,28 +42,58 @@ class ChatService {
     });
   }
 
-  Future<ChatRoom> createRoom({
-    required String name,
-    required List<String> memberIds,
-    required ChatRoomType type,
-    required List<String> adminIds,
-  }) async {
-    final now = DateTime.now();
-    final roomData = {
-      'name': name,
-      'memberIds': memberIds,
-      'type': type.toString().split('.').last,
-      'adminIds': adminIds,
-      'createdAt': Timestamp.fromDate(now),
-      'updatedAt': Timestamp.fromDate(now),
-      'isArchived': false,
-      'isMuted': false,
-    };
+  Future<ChatRoom> createRoom(ChatRoom room,
+  ) async {
+    try {
+      debugPrint('ChatService: Creating room with ID: ${room.id}');
+      
+      // For individual chats, check if a room already exists
+      if (room.type == ChatRoomType.individual && room.memberIds.length == 2) {
+        final existingRooms = await _firestore
+            .collection('rooms')
+            .where('memberIds', arrayContainsAny: room.memberIds)
+            .where('type', isEqualTo: room.type.toString().split('.').last)
+            .get();
 
-    final docRef = await _firestore.collection('rooms').add(roomData);
-    roomData['id'] = docRef.id;
-    
-    return ChatRoom.fromMap(Map<String, dynamic>.from(roomData));
+        for (final doc in existingRooms.docs) {
+          final roomData = doc.data();
+          final roomMemberIds = List<String>.from(roomData['memberIds'] ?? []);
+          
+          // Check if the room has exactly these two members
+          if (roomMemberIds.length == 2 &&
+              roomMemberIds.contains(room.memberIds[0]) &&
+              roomMemberIds.contains(room.memberIds[1])) {
+            roomData['id'] = doc.id;
+            return ChatRoom.fromMap(Map<String, dynamic>.from(roomData));
+          }
+        }
+      }
+
+      // If no existing room found or it's a group chat, create a new room
+      final roomData = {
+        'name': room.name,
+        'photoUrl': room.photoUrl,
+        'memberIds': room.memberIds,
+        'type': room.type.toString().split('.').last,
+        'adminIds': room.adminIds,
+        'createdAt': Timestamp.fromDate(room.createdAt),
+        'updatedAt': Timestamp.fromDate(room.updatedAt),
+        'isArchived': room.isArchived,
+        'isMuted': room.isMuted,
+        'metadata': room.metadata,
+      };
+
+      // Use the provided room ID instead of auto-generating one
+      await _firestore.collection('rooms').doc(room.id).set(roomData);
+      roomData['id'] = room.id;
+      
+      debugPrint('ChatService: Room created successfully with ID: ${room.id}');
+      return ChatRoom.fromMap(Map<String, dynamic>.from(roomData));
+    } catch (e, stackTrace) {
+      debugPrint('ChatService: Error creating room: $e');
+      debugPrint('ChatService: Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   Future<void> deleteRoom(String roomId) async {
@@ -99,21 +130,45 @@ class ChatService {
   }
 
   Future<void> sendMessage(Message message) async {
-    final roomRef = _firestore.collection('rooms').doc(message.roomId);
-    final batch = _firestore.batch();
+    try {
+      debugPrint('ChatService: Starting to send message...');
+      debugPrint('ChatService: Message data: ${message.toMap()}');
+      
+      final roomRef = _firestore.collection('rooms').doc(message.roomId);
+      
+      // First verify if room exists
+      final roomDoc = await roomRef.get();
+      if (!roomDoc.exists) {
+        debugPrint('ChatService: Error - Room ${message.roomId} does not exist');
+        throw Exception('Room does not exist');
+      }
+      
+      debugPrint('ChatService: Room exists, creating batch write...');
+      final batch = _firestore.batch();
 
-    // Add message to messages subcollection
-    final messageRef = roomRef.collection('messages').doc(message.id);
-    batch.set(messageRef, message.toMap());
+      // Add message to messages subcollection
+      final messageRef = roomRef.collection('messages').doc(message.id);
+      final messageData = message.toMap();
+      debugPrint('ChatService: Adding message to batch: $messageData');
+      batch.set(messageRef, messageData);
 
-    // Update room's lastMessage and lastMessageAt
-    batch.update(roomRef, {
-      'lastMessage': message.toMap(),
-      'lastMessageAt': Timestamp.fromDate(message.createdAt),
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
-    });
+      // Update room's lastMessage and lastMessageAt
+      final roomUpdate = {
+        'lastMessage': messageData,
+        'lastMessageAt': Timestamp.fromDate(message.createdAt),
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      };
+      debugPrint('ChatService: Adding room update to batch: $roomUpdate');
+      batch.update(roomRef, roomUpdate);
 
-    await batch.commit();
+      debugPrint('ChatService: Committing batch write...');
+      await batch.commit();
+      debugPrint('ChatService: Message sent successfully!');
+    } catch (e, stackTrace) {
+      debugPrint('ChatService: Error sending message: $e');
+      debugPrint('ChatService: Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   // Room Member Operations
