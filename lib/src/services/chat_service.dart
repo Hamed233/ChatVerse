@@ -1,17 +1,23 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../models/chat_room.dart';
 import '../models/chat_user.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ChatService {
   final String userId;
   final FirebaseFirestore _firestore;
+  final FirebaseStorage _storage;
   
   ChatService({
     required this.userId,
     FirebaseFirestore? firestore,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance;
+    FirebaseStorage? storage,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _storage = storage ?? FirebaseStorage.instance;
 
   // Room Operations
   Stream<List<ChatRoom>> getRooms() {
@@ -216,23 +222,105 @@ class ChatService {
     await _firestore.collection('rooms').doc(room.id).update(room.toMap());
   }
 
+  Stream<ChatRoom?> getRoomStream(String roomId) {
+    return _firestore
+        .collection('rooms')
+        .doc(roomId)
+        .snapshots()
+        .map((snapshot) {
+          if (!snapshot.exists) return null;
+          
+          try {
+            final data = snapshot.data()!;
+            data['id'] = snapshot.id;
+            return ChatRoom.fromMap(Map<String, dynamic>.from(data));
+          } catch (e) {
+            debugPrint('Error parsing room data: $e');
+            return null;
+          }
+        });
+  }
+
   // User Operations
-  Stream<Map<String, ChatUser>> getUsers() {
+  Stream<List<ChatUser>> getUsers() {
     return _firestore
         .collection('users')
         .snapshots()
         .map((snapshot) {
-      final Map<String, ChatUser> users = {};
+          debugPrint('Received users update: ${snapshot.docs.length} users');
+          return snapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            debugPrint('User ${doc.id} status: ${data['isOnline']}');
+            return ChatUser.fromJson(data);
+          }).toList();
+        });
+  }
+
+  // Update typing status for a user in a room
+  Future<void> updateTypingStatusForUser(String roomId, String userId, bool isTyping) async {
+    try {
+      await _firestore
+          .collection('rooms')
+          .doc(roomId)
+          .collection('typing')
+          .doc(userId)
+          .set({
+        'isTyping': isTyping,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Error updating typing status: $e');
+      rethrow;
+    }
+  }
+
+  // Update user's online status
+  Future<void> updateUserOnlineStatus(String userId, bool isOnline) async {
+    try {
+      debugPrint('Updating online status for user $userId to $isOnline');
+      await _firestore.collection('users').doc(userId).update({
+        'isOnline': isOnline,
+        'lastSeen': isOnline ? null : FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Error updating online status: $e');
+      rethrow;
+    }
+  }
+
+  // Stream of typing users in a room
+  Stream<Map<String, bool>> getTypingUsers(String roomId) {
+    return _firestore
+        .collection('rooms')
+        .doc(roomId)
+        .collection('typing')
+        .snapshots()
+        .map((snapshot) {
+      final Map<String, bool> typingUsers = {};
       for (var doc in snapshot.docs) {
-        try {
-          final data = doc.data();
-          data['id'] = doc.id;
-          users[doc.id] = ChatUser.fromJson(Map<String, dynamic>.from(data));
-        } catch (e) {
-          print('Error parsing user data: $e');
-        }
+        typingUsers[doc.id] = doc.data()['isTyping'] as bool;
       }
-      return users;
+      return typingUsers;
     });
+  }
+
+  Future<String> uploadFile({
+    required File file,
+    required String path,
+  }) async {
+    try {
+      debugPrint('ChatService: Uploading file to $path');
+      
+      final ref = _storage.ref().child(path);
+      final uploadTask = await ref.putFile(file);
+      final url = await uploadTask.ref.getDownloadURL();
+      
+      debugPrint('ChatService: File uploaded successfully. URL: $url');
+      return url;
+    } catch (e) {
+      debugPrint('Error uploading file: $e');
+      rethrow;
+    }
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'services/chat_service.dart';
 import 'services/auth_service.dart';
@@ -21,6 +22,9 @@ class ChatController extends ChangeNotifier {
   StreamSubscription? _messagesSubscription;
   StreamSubscription? _roomsSubscription;
   StreamSubscription? _usersSubscription;
+  StreamSubscription? _typingSubscription;
+  final Map<String, bool> _typingUsers = {};
+  bool _isTyping = false;
 
   ChatController({
     required this.userId,
@@ -35,8 +39,6 @@ class ChatController extends ChangeNotifier {
   ChatRoom? get currentRoom => _currentRoom;
 
   set currentRoom(ChatRoom? room) {
-
-
     if (_currentRoom?.id == room?.id) {
       debugPrint('ChatController: Room ID unchanged, skipping update');
       return;
@@ -44,24 +46,24 @@ class ChatController extends ChangeNotifier {
 
     debugPrint('ChatController: Switching room from ${_currentRoom?.id} to ${room?.id}');
 
-    // Cancel existing subscription if any
+    // Cancel existing subscriptions
     _messagesSubscription?.cancel();
+    _typingSubscription?.cancel();
     _messagesSubscription = null;
+    _typingSubscription = null;
 
-    // Clear messages when changing rooms
+    // Clear messages and typing status when changing rooms
     _messages = const [];
+    _typingUsers.clear();
     _currentRoom = room;
 
-
-    if (room != null ) {
+    if (room != null) {
       debugPrint('ChatController: Subscribing to messages for room ${room.id}');
       // Subscribe to messages for the new room
       _messagesSubscription = _chatService
           .getMessages(room.id)
           .listen(
             (messages) {
-             
-              
               if (_currentRoom?.id != room.id) {
                 debugPrint('ChatController: Skipping message update - room changed');
                 return;
@@ -70,9 +72,7 @@ class ChatController extends ChangeNotifier {
               try {
                 debugPrint('ChatController: Updating messages for room ${room.id}');
                 _messages = List.unmodifiable(messages);
-               
-                  notifyListeners();
-               
+                notifyListeners();
               } catch (e, stackTrace) {
                 debugPrint('ChatController: Error updating messages: $e');
                 debugPrint('ChatController: Stack trace: $stackTrace');
@@ -83,11 +83,13 @@ class ChatController extends ChangeNotifier {
             },
             cancelOnError: false,
           );
+          
+      // Listen to typing status
+      _listenToTypingStatus();
     }
   }
 
   void _handleNewMessages(List<Message> messages) {
-    
     final currentRoomId = _currentRoom?.id;
     if (currentRoomId == null) return;
 
@@ -105,11 +107,56 @@ class ChatController extends ChangeNotifier {
   ChatUser? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
 
+  List<String> get typingUsers {
+    if (_currentRoom == null) return [];
+    return _typingUsers.entries
+        .where((entry) => entry.value && entry.key != userId)
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+  void startTyping() {
+    if (_currentRoom == null) return;
+    
+    debugPrint('ChatController: Starting typing in room ${_currentRoom!.id}');
+    
+    _isTyping = true;
+    _typingTimer?.cancel();
+    
+    // Update typing status in the room
+    _chatService.updateTypingStatusForUser(_currentRoom!.id, userId, true);
+    
+    // Set timer to stop typing after 1 second of inactivity
+    _typingTimer = Timer(const Duration(seconds: 1), () {
+      stopTyping();
+    });
+  }
+  
+  void stopTyping() {
+    if (_currentRoom == null || !_isTyping) return;
+    
+    debugPrint('ChatController: Stopping typing in room ${_currentRoom!.id}');
+    
+    _isTyping = false;
+    _typingTimer?.cancel();
+    _typingTimer = null;
+    
+    // Update typing status in the room
+    _chatService.updateTypingStatusForUser(_currentRoom!.id, userId, false);
+  }
+
+  void updateOnlineStatus(bool isOnline) {
+    _chatService.updateUserOnlineStatus(userId, isOnline);
+  }
+
   void _init() async {
     _isLoading = true;
     notifyListeners();
 
     try {
+      // Set user as online
+      updateOnlineStatus(true);
+
       // Get current user
       _currentUser = await _authService.getCurrentUser();
 
@@ -136,6 +183,11 @@ class ChatController extends ChangeNotifier {
           debugPrint('Error in message subscription: $error');
         });
       }
+
+      // Listen to typing status if there's a current room
+      if (_currentRoom != null) {
+        _listenToTypingStatus();
+      }
     } catch (e) {
       debugPrint('Error initializing ChatController: $e');
     } finally {
@@ -144,12 +196,31 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  void _listenToTypingStatus() {
+    _typingSubscription?.cancel();
+    if (_currentRoom == null) return;
+    
+    debugPrint('ChatController: Starting typing status listener for room ${_currentRoom!.id}');
+    
+    _typingSubscription = _chatService.getTypingUsers(_currentRoom!.id).listen((typingStatus) {
+      if (_currentRoom == null) return;
+      
+      debugPrint('ChatController: Received typing status update: $typingStatus');
+      
+      _typingUsers.clear();
+      _typingUsers.addAll(typingStatus);
+      notifyListeners();
+    }, onError: (error) {
+      debugPrint('Error in typing status subscription: $error');
+    });
+  }
+
   Future<void> sendMessage({
     required String content,
     MessageType type = MessageType.text,
     Map<String, dynamic>? metadata,
   }) async {
-    if (_currentRoom == null ) return;
+    if (_currentRoom == null) return;
 
     try {
       debugPrint('Adding message to local list...');
@@ -167,7 +238,6 @@ class ChatController extends ChangeNotifier {
       // Add message to Firestore
       await _chatService.sendMessage(message);
       debugPrint('Message sent successfully!');
-    
     } catch (e, stackTrace) {
       debugPrint('ChatController: Error sending message: $e');
       debugPrint('ChatController: Stack trace: $stackTrace');
@@ -208,6 +278,19 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  Future<String> uploadGroupPhoto(File file) async {
+    try {
+      debugPrint('ChatController: Uploading group photo');
+      return await _chatService.uploadFile(
+        file: file,
+        path: 'group_photos/${_currentRoom!.id}/${DateTime.now().millisecondsSinceEpoch}',
+      );
+    } catch (e) {
+      debugPrint('Error uploading group photo: $e');
+      rethrow;
+    }
+  }
+
   Future<ChatRoom> createRoom(ChatRoom room) async {
     try {
       debugPrint('ChatController: Creating room...');
@@ -218,8 +301,8 @@ class ChatController extends ChangeNotifier {
       debugPrint('ChatController: Room created in Firestore: ${createdRoom.id}');
 
       // Add the room to the local list if we're still mounted
-        _rooms = [createdRoom, ..._rooms];
-        notifyListeners();
+      _rooms = [createdRoom, ..._rooms];
+      notifyListeners();
 
       debugPrint('ChatController: Room created successfully!');
       return createdRoom;
@@ -238,7 +321,6 @@ class ChatController extends ChangeNotifier {
   }) async {
     try {
       debugPrint('ChatController: Finding or creating room...');
-      
       // For individual chats, check if room exists
       if (type == ChatRoomType.individual) {
         final existingRoom = _rooms.firstWhere(
@@ -285,7 +367,6 @@ class ChatController extends ChangeNotifier {
       rethrow;
     }
   }
-
 
   Future<void> deleteRoom() async {
     if (_currentRoom == null) return;
@@ -342,19 +423,7 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  void startTyping() {
-    if (_currentRoom == null) return;
-
-    _typingTimer?.cancel();
-    _chatService.updateTypingStatus(_currentRoom!.id, true);
-
-    _typingTimer = Timer(const Duration(seconds: 5), () {
-      _chatService.updateTypingStatus(_currentRoom!.id, false);
-    });
-  }
-
-  // User registration and management
-  Future<void> registerUser({
+  void registerUser({
     required String id,
     required String name,
     String? email,
@@ -397,17 +466,6 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  // Update user's online status
-  Future<void> updateOnlineStatus(bool isOnline) async {
-    try {
-      await _authService.updateOnlineStatus(isOnline);
-    } catch (e) {
-      print('Error updating online status: $e');
-      rethrow;
-    }
-  }
-
-  // Update user profile
   Future<void> updateUserProfile({
     String? name,
     String? photoUrl,
@@ -425,13 +483,27 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  Stream<ChatRoom?> getRoomStream(String roomId) {
+    return _chatService.getRoomStream(roomId);
+  }
+
   @override
   void dispose() {
-    debugPrint('ChatController: Disposing controller');
+    // Set user as offline
+    updateOnlineStatus(false);
+    
+    // Cancel typing timer and clear status
+    _typingTimer?.cancel();
+    if (_currentRoom != null) {
+      _chatService.updateTypingStatusForUser(_currentRoom!.id, userId, false);
+    }
+    
+    // Cancel all subscriptions
     _messagesSubscription?.cancel();
-    _messagesSubscription = null;
-    _currentRoom = null;
-    _messages = const [];
+    _roomsSubscription?.cancel();
+    _usersSubscription?.cancel();
+    _typingSubscription?.cancel();
+    
     super.dispose();
   }
 }

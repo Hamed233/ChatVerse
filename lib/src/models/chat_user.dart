@@ -5,7 +5,7 @@ class ChatUser {
   final String name;
   final String? email;
   final String? photoUrl;
-  final bool? isOnline;
+  final bool isOnline;
   final DateTime? lastSeen;
   final DateTime? createdAt;
   final Map<String, dynamic>? metadata;
@@ -15,7 +15,7 @@ class ChatUser {
     required this.name,
     this.email,
     this.photoUrl,
-    this.isOnline,
+    this.isOnline = false,
     this.lastSeen,
     this.createdAt,
     this.metadata,
@@ -27,7 +27,7 @@ class ChatUser {
       name: json['name'] as String,
       email: json['email'] as String?,
       photoUrl: json['photoUrl'] as String?,
-      isOnline: json['isOnline'] as bool?,
+      isOnline: json['isOnline'] as bool? ?? false,
       lastSeen: json['lastSeen'] != null
           ? (json['lastSeen'] as Timestamp).toDate()
           : null,
@@ -44,7 +44,7 @@ class ChatUser {
       'name': name,
       if (email != null) 'email': email,
       if (photoUrl != null) 'photoUrl': photoUrl,
-      if (isOnline != null) 'isOnline': isOnline,
+      'isOnline': isOnline,
       if (lastSeen != null) 'lastSeen': Timestamp.fromDate(lastSeen!),
       if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
       if (metadata != null) 'metadata': metadata,

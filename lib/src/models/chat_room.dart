@@ -25,6 +25,7 @@ class ChatRoom {
   final bool isArchived;
   final bool isMuted;
   final int unreadCount;
+  final String? bio;
 
   const ChatRoom({
     required this.id,
@@ -42,6 +43,7 @@ class ChatRoom {
     this.isArchived = false,
     this.isMuted = false,
     this.unreadCount = 0,
+    this.bio,
   });
 
   factory ChatRoom.empty() {
@@ -72,6 +74,7 @@ class ChatRoom {
     bool? isArchived,
     bool? isMuted,
     int? unreadCount,
+    String? bio,
   }) {
     return ChatRoom(
       id: id ?? this.id,
@@ -89,6 +92,7 @@ class ChatRoom {
       isArchived: isArchived ?? this.isArchived,
       isMuted: isMuted ?? this.isMuted,
       unreadCount: unreadCount ?? this.unreadCount,
+      bio: bio ?? this.bio,
     );
   }
 
@@ -112,6 +116,7 @@ class ChatRoom {
       'isArchived': isArchived,
       'isMuted': isMuted,
       'unreadCount': unreadCount,
+      if (bio != null) 'bio': bio,
     };
   }
 
@@ -139,6 +144,7 @@ class ChatRoom {
       isArchived: map['isArchived'] as bool? ?? false,
       isMuted: map['isMuted'] as bool? ?? false,
       unreadCount: map['unreadCount'] as int? ?? 0,
+      bio: map['bio'] as String?,
     );
   }
 
@@ -172,7 +178,8 @@ class ChatRoom {
         mapEquals(other.typingUsers, typingUsers) &&
         other.isArchived == isArchived &&
         other.isMuted == isMuted &&
-        other.unreadCount == unreadCount;
+        other.unreadCount == unreadCount &&
+        other.bio == bio;
   }
 
   @override
@@ -193,6 +200,7 @@ class ChatRoom {
       isArchived,
       isMuted,
       unreadCount,
+      bio,
     );
   }
 

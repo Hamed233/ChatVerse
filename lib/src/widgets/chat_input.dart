@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,7 +10,8 @@ import '../models/message.dart';
 
 class ChatInput extends StatefulWidget {
   final Function(String) onSendMessage;
-  final Function(String, MessageType, Map<String, dynamic>)? onSendMedia;
+  final Function(String, MessageType, Map<String, dynamic>?) onSendMedia;
+  final VoidCallback? onTypingStarted;
   final ChatTheme theme;
   final String currentUserId;
   final String roomId;
@@ -17,7 +19,8 @@ class ChatInput extends StatefulWidget {
   const ChatInput({
     super.key,
     required this.onSendMessage,
-    this.onSendMedia,
+    required this.onSendMedia,
+    this.onTypingStarted,
     required this.theme,
     required this.currentUserId,
     required this.roomId,
@@ -32,6 +35,8 @@ class _ChatInputState extends State<ChatInput> {
   late final StorageService _storageService;
   bool _canSend = false;
   bool _isUploading = false;
+  Timer? _typingTimer;
+  bool _isComposing = false;
 
   @override
   void initState() {
@@ -42,6 +47,7 @@ class _ChatInputState extends State<ChatInput> {
 
   @override
   void dispose() {
+    _typingTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -50,6 +56,15 @@ class _ChatInputState extends State<ChatInput> {
     final canSend = _controller.text.trim().isNotEmpty;
     if (canSend != _canSend) {
       setState(() => _canSend = canSend);
+    }
+    _handleTextChanged(_controller.text);
+  }
+
+  void _handleTextChanged(String text) {
+    _updateCanSend(text.isNotEmpty);
+    if (text.isNotEmpty && widget.onTypingStarted != null) {
+      debugPrint('ChatInput: Triggering typing event');
+      widget.onTypingStarted!();
     }
   }
 
@@ -168,6 +183,12 @@ class _ChatInputState extends State<ChatInput> {
     }
   }
 
+  void _updateCanSend(bool canSend) {
+    if (canSend != _canSend) {
+      setState(() => _canSend = canSend);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -213,6 +234,7 @@ class _ChatInputState extends State<ChatInput> {
                   color: widget.theme.textColor,
                   fontSize: 16,
                 ),
+                onChanged: _handleTextChanged,
                 decoration: InputDecoration(
                   hintText: 'Type a message...',
                   hintStyle: TextStyle(

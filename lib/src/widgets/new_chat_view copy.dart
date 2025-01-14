@@ -28,8 +28,7 @@ class NewChatView extends StatefulWidget {
   State<NewChatView> createState() => _NewChatViewState();
 }
 
-class _NewChatViewState extends State<NewChatView>
-    with SingleTickerProviderStateMixin {
+class _NewChatViewState extends State<NewChatView> with SingleTickerProviderStateMixin {
   late TextEditingController _searchController;
   late TabController _tabController;
   Timer? _searchDebounce;
@@ -80,7 +79,7 @@ class _NewChatViewState extends State<NewChatView>
     try {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
+      
       if (pickedFile != null) {
         // Upload image to Firebase Storage
         final storageRef = FirebaseStorage.instance
@@ -167,14 +166,12 @@ class _NewChatViewState extends State<NewChatView>
               room: room,
               currentUserId: widget.controller.userId,
               users: {
-                ...Map.fromEntries(
-                    _selectedUsers.map((user) => MapEntry(user.id, user))),
-                widget.controller.userId: widget.controller.currentUser ??
-                    ChatUser(
-                      id: widget.controller.userId,
-                      name: 'Me',
-                      email: '',
-                    ),
+                ...Map.fromEntries(_selectedUsers.map((user) => MapEntry(user.id, user))),
+                widget.controller.userId: widget.controller.currentUser ?? ChatUser(
+                  id: widget.controller.userId,
+                  name: 'Me',
+                  email: '',
+                ),
               },
               theme: widget.theme,
             ),
@@ -285,15 +282,14 @@ class _NewChatViewState extends State<NewChatView>
           ),
         ],
       ),
-      floatingActionButton:
-          _tabController.index == 1 && _selectedUsers.isNotEmpty
-              ? FloatingActionButton.extended(
-                  onPressed: _createGroupChat,
-                  backgroundColor: widget.theme.primaryColor,
-                  icon: const Icon(Icons.check),
-                  label: const Text('Create Group'),
-                )
-              : null,
+      floatingActionButton: _tabController.index == 1 && _selectedUsers.isNotEmpty
+          ? FloatingActionButton.extended(
+              onPressed: _createGroupChat,
+              backgroundColor: widget.theme.primaryColor,
+              icon: const Icon(Icons.check),
+              label: const Text('Create Group'),
+            )
+          : null,
     );
   }
 
@@ -307,64 +303,110 @@ class _NewChatViewState extends State<NewChatView>
 
     if (users.isEmpty) {
       return Center(
-        child: Text(
-          _searchQuery.isEmpty ? 'No users found' : 'No matching users',
-          style: TextStyle(color: widget.theme.textColor.withOpacity(0.7)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 64,
+              color: Colors.grey.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _searchQuery.isEmpty ? 'No users found' : 'No matching users',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       );
     }
 
     return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: users.length,
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
       itemBuilder: (context, index) {
         final user = users[index];
         final isSelected = _selectedUsers.contains(user);
 
-        return ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          leading: CircleAvatar(
-            radius: 24,
-            backgroundColor: widget.theme.primaryColor,
-            child: Text(
-              user.name[0].toUpperCase(),
-              style: TextStyle(
-                color: widget.theme.backgroundColor,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: isSelected ? widget.theme.primaryColor.withOpacity(0.1) : widget.theme.backgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            leading: CircleAvatar(
+              radius: 24,
+              backgroundColor: widget.theme.primaryColor,
+              child: Text(
+                user.name[0].toUpperCase(),
+                style: TextStyle(
+                  color: widget.theme.backgroundColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          title: Text(
-            user.name,
-            style: TextStyle(
-              color: widget.theme.textColor,
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
+            title: Text(
+              user.name,
+              style: TextStyle(
+                color: widget.theme.textColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
             ),
-          ),
-          subtitle: Text(
-            user.email ?? '',
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
+            subtitle: Text(
+              user.email ?? '',
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 14,
+              ),
             ),
+            trailing: _tabController.index == 1
+                ? Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected
+                            ? widget.theme.primaryColor
+                            : Colors.grey.withOpacity(0.3),
+                        width: 2,
+                      ),
+                      color: isSelected
+                          ? widget.theme.primaryColor
+                          : Colors.transparent,
+                    ),
+                    child: isSelected
+                        ? Icon(
+                            Icons.check,
+                            size: 16,
+                            color: widget.theme.backgroundColor,
+                          )
+                        : null,
+                  )
+                : null,
+            onTap: () {
+              if (_tabController.index == 1) {
+                _toggleUserSelection(user);
+              } else {
+                _handleUserTap(user);
+              }
+            },
           ),
-          trailing: _tabController.index == 1
-              ? Checkbox(
-                  value: isSelected,
-                  onChanged: (_) => _toggleUserSelection(user),
-                )
-              : null,
-          onTap: () {
-            if (_tabController.index == 1) {
-              _toggleUserSelection(user);
-            } else {
-              _handleUserTap(user);
-            }
-          },
         );
       },
     );
@@ -375,135 +417,128 @@ class _NewChatViewState extends State<NewChatView>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: widget.theme.primaryColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: widget.theme.primaryColor.withOpacity(0.2),
-                        width: 2,
-                      ),
-                      image: _groupImageUrl != null
-                          ? DecorationImage(
-                              image: NetworkImage(_groupImageUrl!),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                    ),
-                    child: _groupImageUrl == null
-                        ? Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.camera_alt,
-                                size: 40,
-                                color: widget.theme.primaryColor,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Add Photo',
-                                style: TextStyle(
-                                  color: widget.theme.primaryColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          )
-                        : null,
-                  ),
+          GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: widget.theme.primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: widget.theme.primaryColor.withOpacity(0.2),
+                  width: 2,
                 ),
-                const SizedBox(height: 24),
-                Container(
-                  decoration: BoxDecoration(
-                    color: widget.theme.backgroundColor,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _groupNameController,
-                    style: TextStyle(
-                      color: widget.theme.textColor,
-                      fontSize: 16,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Enter group name',
-                      hintStyle: const TextStyle(color: Colors.grey),
-                      prefixIcon: Icon(
-                        Icons.group,
-                        color: widget.theme.primaryColor,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                      fillColor: widget.theme.backgroundColor,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: widget.theme.backgroundColor,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _groupBioController,
-                    maxLines: 3,
-                    style: TextStyle(
-                      color: widget.theme.textColor,
-                      fontSize: 16,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Enter group bio (optional)',
-                      hintStyle: const TextStyle(color: Colors.grey),
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.only(left: 16, top: 16),
-                        child: Icon(
-                          Icons.info_outline,
+                image: _groupImageUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(_groupImageUrl!),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: _groupImageUrl == null
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.camera_alt,
+                          size: 40,
                           color: widget.theme.primaryColor,
                         ),
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                      fillColor: widget.theme.backgroundColor,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Add Photo',
+                          style: TextStyle(
+                            color: widget.theme.primaryColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    )
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            decoration: BoxDecoration(
+              color: widget.theme.backgroundColor,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
                 ),
               ],
+            ),
+            child: TextField(
+              controller: _groupNameController,
+              style: TextStyle(
+                color: widget.theme.textColor,
+                fontSize: 16,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Enter group name',
+                hintStyle: const TextStyle(color: Colors.grey),
+                prefixIcon: Icon(
+                  Icons.group,
+                  color: widget.theme.primaryColor,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: widget.theme.backgroundColor,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: widget.theme.backgroundColor,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _groupBioController,
+              maxLines: 3,
+              style: TextStyle(
+                color: widget.theme.textColor,
+                fontSize: 16,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Enter group bio (optional)',
+                hintStyle: const TextStyle(color: Colors.grey),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 16, top: 16),
+                  child: Icon(
+                    Icons.info_outline,
+                    color: widget.theme.primaryColor,
+                  ),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: widget.theme.backgroundColor,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+              ),
             ),
           ),
           if (_selectedUsers.isNotEmpty) ...[
@@ -594,12 +629,6 @@ class _NewChatViewState extends State<NewChatView>
               ),
             ),
           ],
-          Container(
-              // height: 200,
-            child: _buildUsersList(),
-          ),
-            const SizedBox(height: 40),
-
         ],
       ),
     );
@@ -626,8 +655,7 @@ class _NewChatViewState extends State<NewChatView>
     }
   }
 
-  Future<void> _navigateToChatRoom(BuildContext context, ChatRoom room,
-      [ChatUser? otherUser]) async {
+  Future<void> _navigateToChatRoom(BuildContext context, ChatRoom room, [ChatUser? otherUser]) async {
     try {
       // Use the controller from props
       final controller = widget.controller;
@@ -649,12 +677,11 @@ class _NewChatViewState extends State<NewChatView>
               currentUserId: controller.userId,
               users: {
                 if (otherUser != null) otherUser.id: otherUser,
-                controller.userId: controller.currentUser ??
-                    ChatUser(
-                      id: controller.userId,
-                      name: 'Me',
-                      email: '',
-                    ),
+                controller.userId: controller.currentUser ?? ChatUser(
+                  id: controller.userId,
+                  name: 'Me',
+                  email: '',
+                ),
               },
               theme: widget.theme,
             ),
