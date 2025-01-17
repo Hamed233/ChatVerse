@@ -12,6 +12,7 @@ import 'chat_input.dart';
 import 'dart:math' as math;
 import 'package:intl/intl.dart';
 import '../mixins/lifecycle_mixin.dart';
+import 'profile_view.dart';
 
 class ChatView extends StatefulWidget {
   final ChatRoom room;
@@ -45,7 +46,6 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
   final ScrollController _scrollController = ScrollController();
   bool _showScrollToBottom = false;
   bool _isAtBottom = true;
-  DateTime? _lastMessageDate;
   late ChatController _chatController;
 
   @override
@@ -689,7 +689,7 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
       ),
       titleSpacing: 0,
       title: GestureDetector(
-        onTap: isGroup ? _showGroupDetails : null,
+        onTap: isGroup ? _showGroupDetails : _showUserDetails,
         child: Row(
           children: [
             Hero(
@@ -745,12 +745,6 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
         ),
       ),
       actions: [
-        if (isGroup)
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            color: widget.theme.primaryColor,
-            onPressed: _showGroupDetails,
-          ),
         // IconButton(
         //   icon: const Icon(Icons.more_vert),
         //   color: widget.theme.textColor,
@@ -832,45 +826,23 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
     );
   }
 
-  void _searchMessages() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Search functionality coming soon!'),
-        duration: Duration(seconds: 2),
-      ),
+  void _showUserDetails() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (context) => ProfileView(
+              isCurrentUser: false,
+              userId: widget.room.memberIds
+                  .firstWhere((element) => element != widget.currentUserId))),
     );
   }
 
-  void _blockUser() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Block User'),
-        content: Text(
-            'Are you sure you want to block ${widget.room.type == ChatRoomType.group ? 'this group' : 'this user'}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Block functionality coming soon!'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            child: const Text(
-              'Block',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
+  Future<void> _searchMessages() async {
+    // Implement search functionality
+  }
+
+  Future<void> _blockUser() async {
+    // Implement block user functionality
   }
 
   @override
@@ -930,7 +902,6 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
                           );
                         }
 
-                        DateTime? lastMessageDate;
                         return ListView.builder(
                           controller: _scrollController,
                           reverse: true,

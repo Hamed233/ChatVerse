@@ -9,16 +9,40 @@ A powerful and customizable Flutter chat library with Firebase integration, feat
 
 ## Features 🌟
 
-- 🔥 **Firebase Integration**: Built-in support for Firebase Authentication and Cloud Firestore
-- 💬 **Real-time Messaging**: Instant message delivery and updates
-- 👥 **Group Chat Support**: Create and manage group conversations
-- 📱 **Modern UI**: Beautiful and customizable chat interface
-- 📸 **Media Support**: Send images, videos, and files
-- 🔍 **Message Search**: Search through chat history
-- 👤 **User Profiles**: Customizable user profiles with avatars
-- ⚡ **Performance Optimized**: Efficient message loading and caching
-- 🎨 **Themes**: Support for light and dark themes
-- 🌐 **Cross-Platform**: Works on iOS, Android, Web, and Desktop
+- 🔥 **Firebase Integration**: 
+  - Built-in support for Firebase Authentication
+  - Cloud Firestore for messages and data
+  - Firebase Storage for media files
+- 💬 **Real-time Messaging**: 
+  - Instant message delivery
+  - Typing indicators
+  - Online/offline status
+  - Last seen information
+- 👥 **Advanced Group Chat**: 
+  - Create and manage group conversations
+  - Add/remove members
+  - Group avatar support
+  - Admin controls
+- 📱 **Modern UI/UX**: 
+  - Beautiful chat interface
+  - Smooth animations
+  - Intuitive navigation
+  - Date separators
+- 📸 **Rich Media Support**: 
+  - Send and receive images
+  - File sharing capabilities
+  - Media preview
+- 🎨 **Customization**:
+  - Themes (Light/Dark)
+  - Custom colors and styles
+  - Flexible layout options
+- ⚡ **Performance**: 
+  - Efficient message loading
+  - Optimized media handling
+  - Smooth scrolling
+- 🌐 **Cross-Platform**: 
+  - iOS
+  - Android
 
 ## Getting Started 🚀
 
@@ -34,7 +58,7 @@ Add ChatVerse to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  chatverse: ^0.0.1
+  chatverse: ^0.0.3
 ```
 
 ### Basic Usage
@@ -52,7 +76,7 @@ void main() async {
 }
 ```
 
-2. **Set up the Chat Provider**
+2. **Set up the Chat Controller**
 
 ```dart
 class MyApp extends StatelessWidget {
@@ -65,14 +89,15 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        // Your app configuration
+        theme: ChatVerseTheme.light(), // or ChatVerseTheme.dark()
+        home: HomeScreen(),
       ),
     );
   }
 }
 ```
 
-3. **Display the Chat Screen**
+3. **Display the Chat View**
 
 ```dart
 class ChatScreen extends StatelessWidget {
@@ -80,8 +105,9 @@ class ChatScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: ChatView(
-        roomId: 'room_id',
+        room: chatRoom,
         currentUserId: 'current_user_id',
+        theme: ChatVerseTheme.light(),
       ),
     );
   }
@@ -93,104 +119,176 @@ class ChatScreen extends StatelessWidget {
 ### Group Chat Management
 
 ```dart
-// Create a new group
+// Create a new group chat
 final group = await chatController.createRoom(
   name: 'Group Name',
-  memberIds: ['user1', 'user2', 'user3'],
-  type: ChatRoomType.group,
-  adminIds: ['user1'],
+  description: 'Group Description', // Optional
+  members: selectedUsers,
+  type: RoomType.group,
+  avatar: selectedImage, // Optional: File object for group avatar
 );
 
-// Add members to group
-await chatController.addMembers(['user4', 'user5']);
+// Update group details
+await chatController.updateRoom(
+  roomId: room.id,
+  name: newName,
+  description: newDescription,
+  avatar: newAvatarFile,
+);
 
-// Remove members from group
-await chatController.removeMembers(['user2']);
+// Manage group members
+await chatController.addMembers(
+  room: currentRoom,
+  members: selectedMembers,
+  notify: true, // Send system message about new members
+);
+
+await chatController.removeMembers(
+  room: currentRoom,
+  members: membersToRemove,
+  notify: true, // Send system message about removed members
+);
+
+// Update member roles
+await chatController.updateMemberRole(
+  room: currentRoom,
+  memberId: userId,
+  role: MemberRole.admin,
+);
+
+// Leave group
+await chatController.leaveRoom(
+  room: currentRoom,
+  notify: true, // Send system message about member leaving
+);
 ```
 
-### Media Messages
+### Media Handling
 
 ```dart
-// Send image message
+// Send an image message
 await chatController.sendMessage(
-  content: 'image_url',
+  room: currentRoom,
   type: MessageType.image,
+  file: imageFile, // File object from image picker
+  metadata: {
+    'width': 800,
+    'height': 600,
+    'thumbnail': thumbnailUrl, // Optional
+  },
+  onProgress: (progress) {
+    // Handle upload progress
+    print('Upload progress: ${progress * 100}%');
+  },
 );
 
-// Send file message
+// Send a file message
 await chatController.sendMessage(
-  content: 'file_url',
+  room: currentRoom,
   type: MessageType.file,
-  metadata: {'fileName': 'document.pdf', 'size': '2.5MB'},
+  file: pickedFile,
+  metadata: {
+    'fileName': pickedFile.name,
+    'fileSize': await pickedFile.length(),
+    'mimeType': lookupMimeType(pickedFile.path),
+  },
+  onProgress: (progress) {
+    // Handle upload progress
+    print('Upload progress: ${progress * 100}%');
+  },
 );
-```
 
-### Message Features
+// Handle file downloads
+void onFileMessageTap(Message message) async {
+  if (message.type == MessageType.file || message.type == MessageType.image) {
+    final file = await chatController.downloadFile(
+      message.content,
+      onProgress: (progress) {
+        // Handle download progress
+        print('Download progress: ${progress * 100}%');
+      },
+    );
+    
+    if (message.type == MessageType.image) {
+      // Show image preview
+      showImagePreview(context, file);
+    } else {
+      // Open file using platform-specific method
+      OpenFile.open(file.path);
+    }
+  }
+}
 
-```dart
-// Reply to message
-await chatController.sendMessage(
-  content: 'Reply message',
-  replyTo: 'original_message_id',
-);
+// Image/File picker integration
+Future<void> pickAndSendImage() async {
+  final ImagePicker picker = ImagePicker();
+  final XFile? image = await picker.pickImage(
+    source: ImageSource.gallery,
+    maxWidth: 1920,
+    maxHeight: 1080,
+    imageQuality: 80,
+  );
+  
+  if (image != null) {
+    await chatController.sendMessage(
+      room: currentRoom,
+      type: MessageType.image,
+      file: File(image.path),
+    );
+  }
+}
 
-// Delete message
-await chatController.deleteMessage('message_id');
-
-// Update message
-await chatController.updateMessage(
-  messageId: 'message_id',
-  content: 'Updated content',
-);
+Future<void> pickAndSendFile() async {
+  final result = await FilePicker.platform.pickFiles(
+    allowMultiple: false,
+    type: FileType.any,
+  );
+  
+  if (result != null && result.files.isNotEmpty) {
+    final file = File(result.files.first.path!);
+    await chatController.sendMessage(
+      room: currentRoom,
+      type: MessageType.file,
+      file: file,
+    );
+  }
+}
 ```
 
 ## Customization 🎨
 
-### Theme Customization
+ChatVerse provides extensive customization options through themes and style overrides:
 
 ```dart
-ChatView(
-  theme: ChatTheme(
-    primaryColor: Colors.blue,
-    secondaryColor: Colors.grey[200],
-    userBubbleColor: Colors.blue,
-    otherBubbleColor: Colors.grey[300],
-    inputBackgroundColor: Colors.white,
-    // ... more theme options
-  ),
-)
-```
+final theme = ChatVerseTheme(
+  primaryColor: Colors.blue,
+  backgroundColor: Colors.white,
+  textColor: Colors.black87,
+  // ... other theme properties
+);
 
-### Custom Bubble Builder
-
-```dart
 ChatView(
-  bubbleBuilder: (context, message, isUser) {
-    return CustomBubble(
-      message: message,
-      isUser: isUser,
-      // ... your custom bubble implementation
-    );
+  theme: theme,
+  messageBuilder: (context, message) {
+    // Custom message builder
+    return CustomMessageBubble(message: message);
   },
+  // ... other customization options
 )
 ```
-
-## Example App 📱
-
-Check out our [example app](example/) for a complete implementation of ChatVerse features.
 
 ## Contributing 🤝
 
-Contributions are welcome! Feel free to submit issues and pull requests.
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License 📄
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Connect with Me 🌐
 
 - Twitter: [@hamedesam_dev](https://twitter.com/hamedesam_dev)
 - GitHub: [hamedessam](https://github.com/Hamed233)
-
-## License 📄
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments 🙏
 

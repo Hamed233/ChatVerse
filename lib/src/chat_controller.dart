@@ -40,11 +40,11 @@ class ChatController extends ChangeNotifier {
 
   set currentRoom(ChatRoom? room) {
     if (_currentRoom?.id == room?.id) {
-      debugPrint('ChatController: Room ID unchanged, skipping update');
+      _handleError('Room ID unchanged, skipping update');
       return;
     }
 
-    debugPrint('ChatController: Switching room from ${_currentRoom?.id} to ${room?.id}');
+    _handleError('Switching room from ${_currentRoom?.id} to ${room?.id}');
 
     // Cancel existing subscriptions
     _messagesSubscription?.cancel();
@@ -58,28 +58,27 @@ class ChatController extends ChangeNotifier {
     _currentRoom = room;
 
     if (room != null) {
-      debugPrint('ChatController: Subscribing to messages for room ${room.id}');
+      _handleError('Subscribing to messages for room ${room.id}');
       // Subscribe to messages for the new room
       _messagesSubscription = _chatService
           .getMessages(room.id)
           .listen(
             (messages) {
               if (_currentRoom?.id != room.id) {
-                debugPrint('ChatController: Skipping message update - room changed');
+                _handleError('Skipping message update - room changed');
                 return;
               }
 
               try {
-                debugPrint('ChatController: Updating messages for room ${room.id}');
+                _handleError('Updating messages for room ${room.id}');
                 _messages = List.unmodifiable(messages);
                 notifyListeners();
               } catch (e, stackTrace) {
-                debugPrint('ChatController: Error updating messages: $e');
-                debugPrint('ChatController: Stack trace: $stackTrace');
+                _handleError('Error updating messages: $e', stackTrace);
               }
             },
             onError: (error) {
-              debugPrint('ChatController: Error in message subscription: $error');
+              _handleError('Error in message subscription: $error');
             },
             cancelOnError: false,
           );
@@ -95,7 +94,7 @@ class ChatController extends ChangeNotifier {
 
     // Only update messages if we're still in the same room
     if (messages.isNotEmpty && messages.first.roomId == currentRoomId) {
-      debugPrint('ChatController: Updating messages for room $currentRoomId');
+      _handleError('Updating messages for room $currentRoomId');
       _messages = List.unmodifiable(messages);
       notifyListeners();
     }
@@ -118,7 +117,7 @@ class ChatController extends ChangeNotifier {
   void startTyping() {
     if (_currentRoom == null) return;
     
-    debugPrint('ChatController: Starting typing in room ${_currentRoom!.id}');
+    _handleError('Starting typing in room ${_currentRoom!.id}');
     
     _isTyping = true;
     _typingTimer?.cancel();
@@ -135,7 +134,7 @@ class ChatController extends ChangeNotifier {
   void stopTyping() {
     if (_currentRoom == null || !_isTyping) return;
     
-    debugPrint('ChatController: Stopping typing in room ${_currentRoom!.id}');
+    _handleError('Stopping typing in room ${_currentRoom!.id}');
     
     _isTyping = false;
     _typingTimer?.cancel();
@@ -180,7 +179,7 @@ class ChatController extends ChangeNotifier {
         _messagesSubscription = _chatService
             .getMessages(_currentRoom!.id)
             .listen(_handleNewMessages, onError: (error) {
-          debugPrint('Error in message subscription: $error');
+          _handleError('Error in message subscription: $error');
         });
       }
 
@@ -189,7 +188,7 @@ class ChatController extends ChangeNotifier {
         _listenToTypingStatus();
       }
     } catch (e) {
-      debugPrint('Error initializing ChatController: $e');
+      _handleError('Error initializing ChatController: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -200,18 +199,18 @@ class ChatController extends ChangeNotifier {
     _typingSubscription?.cancel();
     if (_currentRoom == null) return;
     
-    debugPrint('ChatController: Starting typing status listener for room ${_currentRoom!.id}');
+    _handleError('Starting typing status listener for room ${_currentRoom!.id}');
     
     _typingSubscription = _chatService.getTypingUsers(_currentRoom!.id).listen((typingStatus) {
       if (_currentRoom == null) return;
       
-      debugPrint('ChatController: Received typing status update: $typingStatus');
+      _handleError('Received typing status update: $typingStatus');
       
       _typingUsers.clear();
       _typingUsers.addAll(typingStatus);
       notifyListeners();
     }, onError: (error) {
-      debugPrint('Error in typing status subscription: $error');
+      _handleError('Error in typing status subscription: $error');
     });
   }
 
@@ -223,7 +222,7 @@ class ChatController extends ChangeNotifier {
     if (_currentRoom == null) return;
 
     try {
-      debugPrint('Adding message to local list...');
+      _handleError('Adding message to local list...');
       final message = Message(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         roomId: _currentRoom!.id,
@@ -237,10 +236,9 @@ class ChatController extends ChangeNotifier {
 
       // Add message to Firestore
       await _chatService.sendMessage(message);
-      debugPrint('Message sent successfully!');
+      _handleError('Message sent successfully!');
     } catch (e, stackTrace) {
-      debugPrint('ChatController: Error sending message: $e');
-      debugPrint('ChatController: Stack trace: $stackTrace');
+      _handleError('Error sending message: $e', stackTrace);
       rethrow;
     }
   }
@@ -280,35 +278,34 @@ class ChatController extends ChangeNotifier {
 
   Future<String> uploadGroupPhoto(File file) async {
     try {
-      debugPrint('ChatController: Uploading group photo');
+      _handleError('Uploading group photo');
       return await _chatService.uploadFile(
         file: file,
         path: 'group_photos/${_currentRoom!.id}/${DateTime.now().millisecondsSinceEpoch}',
       );
     } catch (e) {
-      debugPrint('Error uploading group photo: $e');
+      _handleError('Error uploading group photo: $e');
       rethrow;
     }
   }
 
   Future<ChatRoom> createRoom(ChatRoom room) async {
     try {
-      debugPrint('ChatController: Creating room...');
-      debugPrint('ChatController: Room data: ${room.toMap()}');
+      _handleError('Creating room...');
+      _handleError('Room data: ${room.toMap()}');
 
       // Create the room in Firestore
       final createdRoom = await _chatService.createRoom(room);
-      debugPrint('ChatController: Room created in Firestore: ${createdRoom.id}');
+      _handleError('Room created in Firestore: ${createdRoom.id}');
 
       // Add the room to the local list if we're still mounted
       _rooms = [createdRoom, ..._rooms];
       notifyListeners();
 
-      debugPrint('ChatController: Room created successfully!');
+      _handleError('Room created successfully!');
       return createdRoom;
     } catch (e, stackTrace) {
-      debugPrint('ChatController: Error creating room: $e');
-      debugPrint('ChatController: Stack trace: $stackTrace');
+      _handleError('Error creating room: $e', stackTrace);
       rethrow;
     }
   }
@@ -320,7 +317,7 @@ class ChatController extends ChangeNotifier {
     String? photoUrl,
   }) async {
     try {
-      debugPrint('ChatController: Finding or creating room...');
+      _handleError('Finding or creating room...');
       // For individual chats, check if room exists
       if (type == ChatRoomType.individual) {
         final existingRoom = _rooms.firstWhere(
@@ -376,7 +373,7 @@ class ChatController extends ChangeNotifier {
       _currentRoom = null;
       notifyListeners();
     } catch (e) {
-      debugPrint('Error deleting room: $e');
+      _handleError('Error deleting room: $e');
       rethrow;
     }
   }
@@ -389,7 +386,7 @@ class ChatController extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      debugPrint('Error updating room: $e');
+      _handleError('Error updating room: $e');
       rethrow;
     }
   }
@@ -401,7 +398,7 @@ class ChatController extends ChangeNotifier {
       }
       await _chatService.addMembers(_currentRoom!.id, memberIds);
     } catch (e) {
-      debugPrint('Error adding members: $e');
+      _handleError('Error adding members: $e');
       rethrow;
     }
   }
@@ -418,7 +415,7 @@ class ChatController extends ChangeNotifier {
         _currentRoom = null;
       }
     } catch (e) {
-      debugPrint('Error removing members: $e');
+      _handleError('Error removing members: $e');
       rethrow;
     }
   }
@@ -461,7 +458,7 @@ class ChatController extends ChangeNotifier {
       _currentUser = ChatUser.fromJson(userData);
       notifyListeners();
     } catch (e) {
-      print('Error registering user: $e');
+      _handleError('Error registering user: $e');
       rethrow;
     }
   }
@@ -478,13 +475,21 @@ class ChatController extends ChangeNotifier {
         metadata: metadata,
       );
     } catch (e) {
-      print('Error updating user profile: $e');
+      _handleError('Error updating user profile: $e');
       rethrow;
     }
   }
 
   Stream<ChatRoom?> getRoomStream(String roomId) {
     return _chatService.getRoomStream(roomId);
+  }
+
+  void _handleError(dynamic error, [StackTrace? stackTrace]) {
+    debugPrint('ChatController Error: $error');
+    if (stackTrace != null) {
+      debugPrint('StackTrace: $stackTrace');
+    }
+    // Add proper error handling here
   }
 
   @override

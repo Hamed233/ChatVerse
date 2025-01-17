@@ -4,12 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../chatverse.dart';
 import '../models/chat_room.dart';
 import '../models/chat_user.dart';
 import '../chat_controller.dart';
+import '../services/auth_service.dart';
+import '../services/chat_service.dart';
 import '../utils/chat_theme.dart';
 import 'chat_room_tile.dart';
+import 'chat_view.dart';
+import 'new_chat_fab.dart';
+import 'profile_view.dart';
 
 class ChatListView extends StatefulWidget {
   final String currentUserId;
@@ -68,17 +72,17 @@ class _ChatListViewState extends State<ChatListView>
     _chatController.addListener(_updateUsersMap);
   }
 
-void _onSearchChanged() {
-  if (_searchDebounce?.isActive ?? false) _searchDebounce?.cancel();
-  _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-    // Schedule the state update after the current build phase
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        _searchQuery = _searchController.text.toLowerCase();
+  void _onSearchChanged() {
+    if (_searchDebounce?.isActive ?? false) _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      // Schedule the state update after the current build phase
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _searchQuery = _searchController.text.toLowerCase();
+        });
       });
     });
-  });
-}
+  }
 
   void _onScroll() {
     final ScrollDirection direction =
@@ -366,6 +370,17 @@ void _onSearchChanged() {
         appBar: AppBar(
           title: const Text('Chats'),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.person),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) =>
+                          ProfileView(userId: widget.currentUserId, isCurrentUser: true,)),
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.logout),
               onPressed: _signOut,

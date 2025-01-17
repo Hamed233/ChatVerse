@@ -1,8 +1,27 @@
 ## 0.0.3
 
-### Improvements
-- Improve UI/UX performance
-- Add Firebase Storage to upload files, images in chat
+### Improvements & Bug Fixes
+- Enhanced Home Screen UI with better layout and visual feedback
+- Implemented Firebase Storage integration for file and image uploads
+- Improved single chat UI with:
+  - Better message bubbles and typography
+  - Enhanced date separators
+  - Improved scroll behavior
+  - Fixed message ordering issues
+- Enhanced group management functionality
+  - Improved group editing interface
+  - Better member management
+- Added real-time user status features:
+  - Online/offline indicators
+  - Typing indicators
+  - Last seen status
+- Enhanced New Chat interface:
+  - Improved user search and selection
+  - Better UI/UX for starting new conversations
+- Improved New Group creation:
+  - Enhanced member selection interface
+  - Better group avatar handling
+  - Improved group creation flow
 
 
 ## 0.0.2

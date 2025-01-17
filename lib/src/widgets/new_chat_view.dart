@@ -34,7 +34,7 @@ class _NewChatViewState extends State<NewChatView>
   late TabController _tabController;
   Timer? _searchDebounce;
   String _searchQuery = '';
-  List<ChatUser> _selectedUsers = [];
+  final List<ChatUser> _selectedUsers = [];
   final TextEditingController _groupNameController = TextEditingController();
   final TextEditingController _groupBioController = TextEditingController();
   String? _groupImageUrl;
@@ -199,13 +199,14 @@ class _NewChatViewState extends State<NewChatView>
         backgroundColor: widget.theme.backgroundColor,
         elevation: 0,
         centerTitle: true,
-        title: Text(
-          'New Chat',
-          style: TextStyle(
-            color: widget.theme.textColor,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        title: const Text('New Chat'),
+        actions: [
+          if (_selectedUsers.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.check),
+              onPressed: _createGroupChat,
+            ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(70),
           child: Container(
@@ -317,7 +318,7 @@ class _NewChatViewState extends State<NewChatView>
     return ListView.builder(
       itemCount: users.length,
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       itemBuilder: (context, index) {
         final user = users[index];
         final isSelected = _selectedUsers.contains(user);
@@ -328,14 +329,19 @@ class _NewChatViewState extends State<NewChatView>
           leading: CircleAvatar(
             radius: 24,
             backgroundColor: widget.theme.primaryColor,
-            child: Text(
-              user.name[0].toUpperCase(),
-              style: TextStyle(
-                color: widget.theme.backgroundColor,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            backgroundImage: user.photoUrl?.isNotEmpty == true
+                ? NetworkImage(user.photoUrl!)
+                : null,
+            child: (user.photoUrl?.isNotEmpty == true)
+                ? null
+                : Text(
+                    user.name[0].toUpperCase(),
+                    style: TextStyle(
+                      color: widget.theme.backgroundColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
           ),
           title: Text(
             user.name,
@@ -520,7 +526,7 @@ class _NewChatViewState extends State<NewChatView>
               ),
             ),
             const SizedBox(height: 12),
-            Container(
+            SizedBox(
               height: 100,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
@@ -595,11 +601,10 @@ class _NewChatViewState extends State<NewChatView>
             ),
           ],
           Container(
-              // height: 200,
+            // height: 200,
             child: _buildUsersList(),
           ),
-            const SizedBox(height: 40),
-
+          const SizedBox(height: 40),
         ],
       ),
     );

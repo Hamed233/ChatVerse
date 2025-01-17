@@ -36,7 +36,6 @@ class _ChatInputState extends State<ChatInput> {
   bool _canSend = false;
   bool _isUploading = false;
   Timer? _typingTimer;
-  bool _isComposing = false;
 
   @override
   void initState() {
@@ -163,7 +162,7 @@ class _ChatInputState extends State<ChatInput> {
       final url = await _storageService.uploadFile(file, widget.roomId);
 
       if (url != null && mounted) {
-        widget.onSendMedia?.call(
+        widget.onSendMedia.call(
           url,
           type,
           {

@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:chatverse/chatverse.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'chat_list_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -18,6 +20,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
+  File? _selectedImage;
+
+  Future<String?> _uploadImage(String userId, File imageFile) async {
+    try {
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('user_images')
+          .child('$userId.jpg');
+      await ref.putFile(imageFile);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      debugPrint('Error uploading image: $e');
+      return null;
+    }
+  }
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
@@ -36,16 +53,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       final user = authResult.user;
       if (user != null) {
-        // Update display name
-        await user.updateProfile(displayName: _nameController.text.trim());
-        await user.reload(); // Reload user to get updated profile
+        String? photoUrl;
+        if (_selectedImage != null) {
+          photoUrl = await _uploadImage(user.uid, _selectedImage!);
+        }
+
+        // Update display name and photo URL
+        await user.updateProfile(
+          displayName: _nameController.text.trim(),
+          photoURL: photoUrl,
+        );
+        await user.reload();
 
         // Create user document in Firestore
         final userDoc = {
           'id': user.uid,
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
-          'photoUrl': user.photoURL,
+          'photoUrl': photoUrl,
           'isOnline': true,
           'lastSeen': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
@@ -61,7 +86,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           id: user.uid,
           name: _nameController.text.trim(),
           email: _emailController.text.trim(),
-          photoUrl: user.photoURL,
+          photoUrl: photoUrl,
           isOnline: true,
           lastSeen: DateTime.now(),
           createdAt: DateTime.now(),
@@ -133,10 +158,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(
-                  Icons.person_add_outlined,
-                  size: 64,
-                  color: Colors.blue,
+                Center(
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.grey[200],
+                          image: _selectedImage != null
+                              ? DecorationImage(
+                                  image: FileImage(_selectedImage!),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: _selectedImage == null
+                            ? const Icon(
+                                Icons.person,
+                                size: 60,
+                                color: Colors.grey,
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: ChatImageUploader(
+                          size: 40,
+                          icon: Icons.camera_alt,
+                          backgroundColor: Theme.of(context).primaryColor,
+                          iconColor: Colors.white,
+                          onImageSelected: (File image) {
+                            setState(() {
+                              _selectedImage = image;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 32),
                 const Text(
@@ -211,26 +273,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _register,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: _isLoading
+                        ? const CircularProgressIndicator()
+                        : const Text(
+                            'Register',
+                            style: TextStyle(fontSize: 18),
                           ),
-                        )
-                      : const Text(
-                          'Register',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                  ),
                 ),
               ],
             ),

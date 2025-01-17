@@ -1,6 +1,5 @@
 import 'package:chatverse_example/screens/login_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:chatverse/chatverse.dart';
 
 class ChatListScreen extends StatefulWidget {
