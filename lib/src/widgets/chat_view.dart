@@ -46,18 +46,25 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
   final ScrollController _scrollController = ScrollController();
   bool _showScrollToBottom = false;
   bool _isAtBottom = true;
-  late ChatController _chatController;
+  late final ChatController _chatController = widget.controller;
+  bool _isSearching = false;
+  String? _highlightedMessageId;
+  bool _isUserBlocked = false;
+  bool _isBlockedByUser = false;
 
   @override
   ChatController get chatController => _chatController;
 
+  bool get isGroup => widget.room.type == ChatRoomType.group;
+
+  bool get _isBlockedEither => _isUserBlocked || _isBlockedByUser;
+
   @override
   void initState() {
-    _chatController = widget.controller;
     super.initState();
     _scrollController.addListener(_onScroll);
+    _checkBlockStatus();
 
-    // Set current room after the first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         debugPrint('ChatView: Setting current room to ${widget.room.id}');
@@ -68,31 +75,231 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
   }
 
   @override
-  void didUpdateWidget(ChatView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller ||
-        oldWidget.room.id != widget.room.id) {
-      _chatController = widget.controller;
-      // Update the current room after the frame
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          debugPrint('ChatView: Updating current room to ${widget.room.id}');
-          _chatController.currentRoom = widget.room;
-        }
-      });
-    }
-  }
-
-  @override
   void dispose() {
-    debugPrint('ChatView: Disposing view for room ${widget.room.id}');
-    // Only clear the current room if we're still showing this room
     if (mounted && _chatController.currentRoom?.id == widget.room.id) {
       _chatController.currentRoom = null;
     }
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkBlockStatus() async {
+    if (!isGroup) {
+      final otherUserId =
+          widget.room.memberIds.firstWhere((id) => id != widget.currentUserId);
+      final isBlocked = await widget.controller.isUserBlocked(otherUserId);
+      final isBlockedBy = await widget.controller.isBlockedByUser(otherUserId);
+      if (mounted) {
+        setState(() {
+          _isUserBlocked = isBlocked;
+          _isBlockedByUser = isBlockedBy;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleBlockUser() async {
+    if (!isGroup) {
+      final otherUserId =
+          widget.room.memberIds.firstWhere((id) => id != widget.currentUserId);
+      if (_isUserBlocked) {
+        await widget.controller.unblockUser(otherUserId);
+      } else {
+        await widget.controller.blockUser(otherUserId);
+      }
+      await _checkBlockStatus();
+    }
+  }
+
+  Widget _buildInput() {
+    if (_isBlockedEither) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: widget.theme.backgroundColor,
+          border: Border(
+            top: BorderSide(
+              color: Colors.grey.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                _isUserBlocked
+                    ? 'You have blocked this user'
+                    : 'You have been blocked by this user',
+                style: TextStyle(
+                  color: widget.theme.textColor.withOpacity(0.6),
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            if (_isUserBlocked) // Only show unblock button if we blocked them
+              TextButton(
+                onPressed: _handleBlockUser,
+                child: Text(
+                  'Unblock',
+                  style: TextStyle(
+                    color: widget.theme.primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return ChatInput(
+      onSendMessage: (content) async {
+        try {
+          await _chatController.sendMessage(
+            content: content,
+            type: MessageType.text,
+          );
+          if (_isAtBottom) {
+            _scrollToBottom();
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error sending message: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      },
+      onSendMedia: (url, type, metadata) async {
+        try {
+          await _chatController.sendMessage(
+            content: url,
+            type: type,
+            metadata: metadata,
+          );
+          if (_isAtBottom) {
+            _scrollToBottom();
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error sending media: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      },
+      onTypingStarted: () => _chatController.startTyping(),
+      theme: widget.theme,
+      currentUserId: widget.currentUserId,
+      roomId: widget.room.id,
+    );
+  }
+
+  void _searchMessages() {
+    showDialog(
+      context: context,
+      builder: (context) => _SearchDialog(
+        users: widget.users,
+        controller: widget.controller,
+        theme: widget.theme,
+        onMessageSelected: _scrollToMessage,
+        roomId: widget.room.id,
+      ),
+    );
+  }
+
+  void _scrollToMessage(int messageIndex) {
+    if (_scrollController.hasClients) {
+      // Since we're using reverse: true, we need to adjust the scroll position
+      final totalMessages = widget.controller.messages.length;
+      final itemHeight = 70.0; // Approximate height of each message
+      final offset = (totalMessages - messageIndex - 1) * itemHeight;
+
+      _scrollController.animateTo(
+        offset,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutCubic,
+      );
+
+      // Highlight the message temporarily
+      setState(() {
+        _highlightedMessageId = widget.controller.messages[messageIndex].id;
+      });
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            _highlightedMessageId = null;
+          });
+        }
+      });
+    }
+  }
+
+  void _showGroupDetails() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupDetailsView(
+          room: widget.room,
+          users: widget.users,
+          currentUserId: widget.currentUserId,
+          controller: widget.controller,
+          theme: widget.theme,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _blockUser() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Block User'),
+        content: Text(
+            'Are you sure you want to block ${widget.users[widget.room.memberIds.firstWhere((id) => id != widget.currentUserId)]?.name}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: widget.theme.primaryColor),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text(
+              'Block',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _handleBlockUser();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isUserBlocked
+                ? 'User blocked successfully'
+                : 'User unblocked successfully'),
+          ),
+        );
+      }
+    }
   }
 
   void _onScroll() {
@@ -162,9 +369,11 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
                     maxWidth: MediaQuery.of(context).size.width * 0.75,
                   ),
                   decoration: BoxDecoration(
-                    color: isMe
-                        ? widget.theme.primaryColor
-                        : widget.theme.backgroundColor,
+                    color: _highlightedMessageId == message.id
+                        ? widget.theme.primaryColor.withOpacity(0.3)
+                        : isMe
+                            ? widget.theme.primaryColor
+                            : widget.theme.backgroundColor,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(20),
                       topRight: const Radius.circular(20),
@@ -745,84 +954,70 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
         ),
       ),
       actions: [
-        // IconButton(
-        //   icon: const Icon(Icons.more_vert),
-        //   color: widget.theme.textColor,
-        //   onPressed: () {
-        //     showModalBottomSheet(
-        //       context: context,
-        //       backgroundColor: Colors.transparent,
-        //       builder: (context) => Container(
-        //         decoration: BoxDecoration(
-        //           color: widget.theme.backgroundColor,
-        //           borderRadius: const BorderRadius.vertical(
-        //             top: Radius.circular(20),
-        //           ),
-        //         ),
-        //         child: SafeArea(
-        //           child: Column(
-        //             mainAxisSize: MainAxisSize.min,
-        //             children: [
-        //               Container(
-        //                 margin: const EdgeInsets.symmetric(vertical: 8),
-        //                 width: 40,
-        //                 height: 4,
-        //                 decoration: BoxDecoration(
-        //                   color: Colors.grey.withOpacity(0.3),
-        //                   borderRadius: BorderRadius.circular(2),
-        //                 ),
-        //               ),
-        //               ListTile(
-        //                 leading: const Icon(Icons.search),
-        //                 title: const Text('Search Messages'),
-        //                 onTap: () {
-        //                   Navigator.pop(context);
-        //                   _searchMessages();
-        //                 },
-        //               ),
-        //               if (isGroup)
-        //                 ListTile(
-        //                   leading: const Icon(Icons.group),
-        //                   title: const Text('Group Info'),
-        //                   onTap: () {
-        //                     Navigator.pop(context);
-        //                     _showGroupDetails();
-        //                   },
-        //                 ),
-        //               ListTile(
-        //                 leading: const Icon(Icons.block, color: Colors.red),
-        //                 title: const Text(
-        //                   'Block User',
-        //                   style: TextStyle(color: Colors.red),
-        //                 ),
-        //                 onTap: () {
-        //                   Navigator.pop(context);
-        //                   _blockUser();
-        //                 },
-        //               ),
-        //             ],
-        //           ),
-        //         ),
-        //       ),
-        //     );
-        //   },
-        // ),
-      ],
-    );
-  }
-
-  void _showGroupDetails() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => GroupDetailsView(
-          room: widget.room,
-          users: widget.users,
-          currentUserId: widget.currentUserId,
-          controller: widget.controller,
-          theme: widget.theme,
+        IconButton(
+          icon: const Icon(Icons.more_vert),
+          color: widget.theme.textColor,
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.transparent,
+              builder: (context) => Container(
+                decoration: BoxDecoration(
+                  color: widget.theme.backgroundColor,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
+                  ),
+                ),
+                child: SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.search),
+                        title: const Text('Search Messages'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _searchMessages();
+                        },
+                      ),
+                      if (isGroup)
+                        ListTile(
+                          leading: const Icon(Icons.group),
+                          title: const Text('Group Info'),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showGroupDetails();
+                          },
+                        ),
+                      if (!isGroup)
+                        ListTile(
+                          leading: const Icon(Icons.block, color: Colors.red),
+                          title: const Text(
+                            'Block User',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _blockUser();
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 
@@ -837,16 +1032,13 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
     );
   }
 
-  Future<void> _searchMessages() async {
-    // Implement search functionality
-  }
-
-  Future<void> _blockUser() async {
-    // Implement block user functionality
-  }
-
   @override
   Widget build(BuildContext context) {
+    print('_isUserBlocked');
+    print(_isUserBlocked);
+    print('_isBlockedByUser');
+    print(_isBlockedByUser);
+
     return Scaffold(
       backgroundColor: widget.theme.backgroundColor,
       appBar: widget.appBar ?? _buildAppBar(),
@@ -982,67 +1174,194 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
               Consumer<ChatController>(
                 builder: (context, controller, _) => _buildTypingIndicator(),
               ),
-              Container(
-                decoration: BoxDecoration(
-                  color: widget.theme.backgroundColor,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      offset: const Offset(0, -1),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: ChatInput(
-                  onSendMessage: (content) async {
-                    try {
-                      await _chatController.sendMessage(
-                        content: content,
-                        type: MessageType.text,
-                      );
-                      if (_isAtBottom) {
-                        _scrollToBottom();
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error sending message: $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  onSendMedia: (url, type, metadata) async {
-                    try {
-                      await _chatController.sendMessage(
-                        content: url,
-                        type: type,
-                        metadata: metadata,
-                      );
-                      if (_isAtBottom) {
-                        _scrollToBottom();
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error sending media: $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  onTypingStarted: () => _chatController.startTyping(),
-                  theme: widget.theme,
-                  currentUserId: widget.currentUserId,
-                  roomId: widget.room.id,
-                ),
-              ),
+              _buildInput(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchDialog extends StatefulWidget {
+  final Map<String, ChatUser> users;
+  final ChatController controller;
+  final ChatTheme theme;
+  final Function(int) onMessageSelected;
+  final String roomId;
+
+  const _SearchDialog({
+    required this.users,
+    required this.controller,
+    required this.theme,
+    required this.onMessageSelected,
+    required this.roomId,
+  });
+
+  @override
+  _SearchDialogState createState() => _SearchDialogState();
+}
+
+class _SearchDialogState extends State<_SearchDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  List<Message> _searchResults = [];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _performSearch(String value) {
+    setState(() {
+      if (value.isEmpty) {
+        _searchResults = [];
+      } else {
+        _searchResults = widget.controller.messages
+            .where((msg) =>
+                msg.roomId == widget.roomId &&
+                msg.content.toLowerCase().contains(value.toLowerCase()))
+            .toList();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.6,
+          maxWidth: MediaQuery.of(context).size.width * 0.9,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Search Messages',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: widget.theme.textColor,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                    color: widget.theme.textColor,
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Enter search term',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onChanged: _performSearch,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _searchResults.isEmpty && _searchController.text.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Enter text to search messages',
+                        style: TextStyle(
+                          color: widget.theme.textColor.withOpacity(0.6),
+                        ),
+                      ),
+                    )
+                  : _searchResults.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No messages found',
+                            style: TextStyle(
+                              color: widget.theme.textColor.withOpacity(0.6),
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          itemCount: _searchResults.length,
+                          itemBuilder: (context, index) {
+                            final message = _searchResults[index];
+                            final sender = widget.users[message.senderId];
+                            return ListTile(
+                              leading: CircleAvatar(
+                                radius: 16,
+                                backgroundColor:
+                                    widget.theme.primaryColor.withOpacity(0.2),
+                                backgroundImage: sender?.photoUrl != null
+                                    ? NetworkImage(sender!.photoUrl!)
+                                    : null,
+                                child: sender?.photoUrl == null
+                                    ? Text(
+                                        sender?.name[0].toUpperCase() ?? '?',
+                                        style: TextStyle(
+                                          color: widget.theme.primaryColor,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              title: Text(
+                                sender?.name ?? 'Unknown',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    message.content,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    DateFormat.yMMMd()
+                                        .add_jm()
+                                        .format(message.createdAt),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: widget.theme.textColor
+                                          .withOpacity(0.6),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              onTap: () {
+                                final messageIndex = widget.controller.messages
+                                    .indexWhere((m) => m.id == message.id);
+                                if (messageIndex != -1) {
+                                  Navigator.pop(context);
+                                  widget.onMessageSelected(messageIndex);
+                                }
+                              },
+                            );
+                          },
+                        ),
+            ),
+          ],
         ),
       ),
     );

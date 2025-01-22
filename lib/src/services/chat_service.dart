@@ -323,4 +323,83 @@ class ChatService {
       rethrow;
     }
   }
+
+  // Block user functionality
+  Future<void> blockUser(String userId) async {
+    try {
+      // Add user to blocked users collection
+      await _firestore.collection('users').doc(this.userId).collection('blocked').doc(userId).set({
+        'blockedAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Find and archive all individual chat rooms with this user
+      final rooms = await _firestore
+          .collection('rooms')
+          .where('memberIds', arrayContains: this.userId)
+          .where('type', isEqualTo: ChatRoomType.individual.toString().split('.').last)
+          .get();
+      
+      for (final room in rooms.docs) {
+        final memberIds = List<String>.from(room.data()['memberIds'] ?? []);
+        if (memberIds.contains(userId)) {
+          await room.reference.update({
+            'isArchived': true,
+            'blockedBy': this.userId,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error blocking user: $e');
+      rethrow;
+    }
+  }
+
+  // Check if a user is blocked
+  Future<bool> isUserBlocked(String userId) async {
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(this.userId)
+          .collection('blocked')
+          .doc(userId)
+          .get();
+      return doc.exists;
+    } catch (e) {
+      debugPrint('Error checking blocked status: $e');
+      return false;
+    }
+  }
+
+  // Unblock user
+  Future<void> unblockUser(String userId) async {
+    try {
+      // Remove user from blocked collection
+      await _firestore
+          .collection('users')
+          .doc(this.userId)
+          .collection('blocked')
+          .doc(userId)
+          .delete();
+      
+      // Find and unarchive all individual chat rooms with this user
+      final rooms = await _firestore
+          .collection('rooms')
+          .where('memberIds', arrayContains: this.userId)
+          .where('type', isEqualTo: ChatRoomType.individual.toString().split('.').last)
+          .where('blockedBy', isEqualTo: this.userId)
+          .get();
+      
+      for (final room in rooms.docs) {
+        await room.reference.update({
+          'isArchived': false,
+          'blockedBy': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      debugPrint('Error unblocking user: $e');
+      rethrow;
+    }
+  }
 }

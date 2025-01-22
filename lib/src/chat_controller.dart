@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'services/chat_service.dart';
 import 'services/auth_service.dart';
@@ -60,29 +61,27 @@ class ChatController extends ChangeNotifier {
     if (room != null) {
       _handleError('Subscribing to messages for room ${room.id}');
       // Subscribe to messages for the new room
-      _messagesSubscription = _chatService
-          .getMessages(room.id)
-          .listen(
-            (messages) {
-              if (_currentRoom?.id != room.id) {
-                _handleError('Skipping message update - room changed');
-                return;
-              }
+      _messagesSubscription = _chatService.getMessages(room.id).listen(
+        (messages) {
+          if (_currentRoom?.id != room.id) {
+            _handleError('Skipping message update - room changed');
+            return;
+          }
 
-              try {
-                _handleError('Updating messages for room ${room.id}');
-                _messages = List.unmodifiable(messages);
-                notifyListeners();
-              } catch (e, stackTrace) {
-                _handleError('Error updating messages: $e', stackTrace);
-              }
-            },
-            onError: (error) {
-              _handleError('Error in message subscription: $error');
-            },
-            cancelOnError: false,
-          );
-          
+          try {
+            _handleError('Updating messages for room ${room.id}');
+            _messages = List.unmodifiable(messages);
+            notifyListeners();
+          } catch (e, stackTrace) {
+            _handleError('Error updating messages: $e', stackTrace);
+          }
+        },
+        onError: (error) {
+          _handleError('Error in message subscription: $error');
+        },
+        cancelOnError: false,
+      );
+
       // Listen to typing status
       _listenToTypingStatus();
     }
@@ -116,30 +115,30 @@ class ChatController extends ChangeNotifier {
 
   void startTyping() {
     if (_currentRoom == null) return;
-    
+
     _handleError('Starting typing in room ${_currentRoom!.id}');
-    
+
     _isTyping = true;
     _typingTimer?.cancel();
-    
+
     // Update typing status in the room
     _chatService.updateTypingStatusForUser(_currentRoom!.id, userId, true);
-    
+
     // Set timer to stop typing after 1 second of inactivity
     _typingTimer = Timer(const Duration(seconds: 1), () {
       stopTyping();
     });
   }
-  
+
   void stopTyping() {
     if (_currentRoom == null || !_isTyping) return;
-    
+
     _handleError('Stopping typing in room ${_currentRoom!.id}');
-    
+
     _isTyping = false;
     _typingTimer?.cancel();
     _typingTimer = null;
-    
+
     // Update typing status in the room
     _chatService.updateTypingStatusForUser(_currentRoom!.id, userId, false);
   }
@@ -198,14 +197,16 @@ class ChatController extends ChangeNotifier {
   void _listenToTypingStatus() {
     _typingSubscription?.cancel();
     if (_currentRoom == null) return;
-    
-    _handleError('Starting typing status listener for room ${_currentRoom!.id}');
-    
-    _typingSubscription = _chatService.getTypingUsers(_currentRoom!.id).listen((typingStatus) {
+
+    _handleError(
+        'Starting typing status listener for room ${_currentRoom!.id}');
+
+    _typingSubscription =
+        _chatService.getTypingUsers(_currentRoom!.id).listen((typingStatus) {
       if (_currentRoom == null) return;
-      
+
       _handleError('Received typing status update: $typingStatus');
-      
+
       _typingUsers.clear();
       _typingUsers.addAll(typingStatus);
       notifyListeners();
@@ -281,7 +282,8 @@ class ChatController extends ChangeNotifier {
       _handleError('Uploading group photo');
       return await _chatService.uploadFile(
         file: file,
-        path: 'group_photos/${_currentRoom!.id}/${DateTime.now().millisecondsSinceEpoch}',
+        path:
+            'group_photos/${_currentRoom!.id}/${DateTime.now().millisecondsSinceEpoch}',
       );
     } catch (e) {
       _handleError('Error uploading group photo: $e');
@@ -492,23 +494,72 @@ class ChatController extends ChangeNotifier {
     // Add proper error handling here
   }
 
+  Future<void> blockUser(String userId) async {
+    try {
+      await _chatService.blockUser(userId);
+      // Close the current room if it's with the blocked user
+      if (_currentRoom?.type == ChatRoomType.individual &&
+          _currentRoom!.memberIds.contains(userId)) {
+        _currentRoom = null;
+      }
+      notifyListeners();
+    } catch (e) {
+      _handleError('Error blocking user: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> unblockUser(String userId) async {
+    try {
+      await _chatService.unblockUser(userId);
+      notifyListeners();
+    } catch (e) {
+      _handleError('Error unblocking user: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> isUserBlocked(String userId) async {
+    try {
+      return await _chatService.isUserBlocked(userId);
+    } catch (e) {
+      _handleError('Error checking blocked status: $e');
+      return false;
+    }
+  }
+
+  Future<bool> isBlockedByUser(String userId) async {
+    try {
+      final blockedBySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('blocked')
+          .doc(_currentUser?.id)
+          .get();
+      return blockedBySnapshot.exists;
+    } catch (e) {
+      debugPrint('Error checking if blocked by user: $e');
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     // Set user as offline
     updateOnlineStatus(false);
-    
+
     // Cancel typing timer and clear status
     _typingTimer?.cancel();
     if (_currentRoom != null) {
       _chatService.updateTypingStatusForUser(_currentRoom!.id, userId, false);
     }
-    
+
     // Cancel all subscriptions
     _messagesSubscription?.cancel();
     _roomsSubscription?.cancel();
     _usersSubscription?.cancel();
     _typingSubscription?.cancel();
-    
+
     super.dispose();
   }
 }

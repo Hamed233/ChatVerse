@@ -1,3 +1,17 @@
+## 0.0.4
+
+### Improvements & Bug Fixes
+- **Real-Time Chat**: Send and receive messages instantly.
+- **User Profiles**:
+  - Upload and display profile photos.
+  - Edit user details (name, bio, etc.) via the **User Details Screen**.
+- **Enhanced Chat Screen**:
+  - 🔍 **Search Messages**: Quickly find specific messages in conversations.
+  - 🚫 **Block Users**: Block unwanted users directly from the chat interface.
+  - 📅 **Message Metadata**: Timestamps, read receipts, and rich message formatting.
+- **Backward Compatibility**: Works seamlessly with existing implementations.
+
+
 ## 0.0.3
 
 ### Improvements & Bug Fixes
