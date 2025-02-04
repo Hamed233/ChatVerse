@@ -58,10 +58,6 @@ topics:
 platforms:
   android:
   ios:
-  web:
-  macos:
-  windows:
-  linux:
 
 false_secrets:
   - /example/**/google-services.json

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import '../models/chat_user.dart';
 
 class AuthService {
@@ -85,7 +86,7 @@ class AuthService {
                 data['id'] = doc.id;
                 return ChatUser.fromJson(data);
               } catch (e) {
-                print('Error parsing user data: $e');
+                debugPrint('Error parsing user data: $e');
                 return null;
               }
             })
@@ -128,7 +129,7 @@ class AuthService {
       );
       return result.user;
     } catch (e) {
-      print('Error signing in: $e');
+      debugPrint('Error signing in: $e');
       rethrow;
     }
   }
@@ -161,18 +162,19 @@ class AuthService {
       
       return result.user;
     } catch (e) {
-      print('Error registering: $e');
+      debugPrint('Error registering: $e');
       rethrow;
     }
   }
 
   Future<void> signOut() async {
     try {
-      await updateOnlineStatus(false);
       await _auth.signOut();
+      await updateOnlineStatus(false);
+      debugPrint('User signed out successfully');
     } catch (e) {
-      print('Error signing out: $e');
-      rethrow;
+      debugPrint('Error signing out: $e');
+      throw Exception('Failed to sign out');
     }
   }
 }

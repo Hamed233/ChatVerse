@@ -7,6 +7,15 @@
 
 A powerful and customizable Flutter chat library with Firebase integration, featuring a beautiful UI, group chat support, and real-time messaging capabilities.
 
+## Demo Video 🎥
+
+<div align="center">
+  <video width="400" controls>
+    <source src="https://github.com/Hamed233/ChatVerse/raw/main/assets/chatverse_demo.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</div>
+
 ## Features 🌟
 
 - 🔥 **Firebase Integration**: 
@@ -58,7 +67,7 @@ Add ChatVerse to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  chatverse: ^0.0.3
+  chatverse: ^0.0.4
 ```
 
 ### Basic Usage

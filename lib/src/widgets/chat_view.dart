@@ -47,7 +47,6 @@ class _ChatViewState extends State<ChatView> with ChatLifecycleMixin {
   bool _showScrollToBottom = false;
   bool _isAtBottom = true;
   late final ChatController _chatController = widget.controller;
-  bool _isSearching = false;
   String? _highlightedMessageId;
   bool _isUserBlocked = false;
   bool _isBlockedByUser = false;

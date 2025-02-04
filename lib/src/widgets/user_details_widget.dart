@@ -186,7 +186,7 @@ class _UserDetailsWidgetState extends State<UserDetailsWidget> {
               ),
               if (onTap != null) ...[
                 const SizedBox(width: 8),
-                Icon(
+                 Icon(
                   Icons.edit,
                   size: 20,
                   color: theme.primaryColor,
@@ -382,7 +382,7 @@ class _UserDetailsWidgetState extends State<UserDetailsWidget> {
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(
+                      child: const CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
