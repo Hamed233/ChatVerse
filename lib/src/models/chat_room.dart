@@ -24,6 +24,8 @@ class ChatRoom {
   final Map<String, DateTime>? typingUsers;
   final bool isArchived;
   final bool isMuted;
+  final int unreadCount;
+  final String? bio;
 
   const ChatRoom({
     required this.id,
@@ -40,7 +42,21 @@ class ChatRoom {
     this.typingUsers,
     this.isArchived = false,
     this.isMuted = false,
+    this.unreadCount = 0,
+    this.bio,
   });
+
+  factory ChatRoom.empty() {
+    return ChatRoom(
+      id: '',
+      name: '',
+      type: ChatRoomType.individual,
+      memberIds: const [],
+      adminIds: const [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
 
   ChatRoom copyWith({
     String? id,
@@ -57,6 +73,8 @@ class ChatRoom {
     Map<String, DateTime>? typingUsers,
     bool? isArchived,
     bool? isMuted,
+    int? unreadCount,
+    String? bio,
   }) {
     return ChatRoom(
       id: id ?? this.id,
@@ -73,10 +91,12 @@ class ChatRoom {
       typingUsers: typingUsers ?? this.typingUsers,
       isArchived: isArchived ?? this.isArchived,
       isMuted: isMuted ?? this.isMuted,
+      unreadCount: unreadCount ?? this.unreadCount,
+      bio: bio ?? this.bio,
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
@@ -84,52 +104,65 @@ class ChatRoom {
       'type': type.toString().split('.').last,
       'memberIds': memberIds,
       'adminIds': adminIds,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-      'lastMessageAt': lastMessageAt?.toIso8601String(),
-      'lastMessage': lastMessage?.toJson(),
-      'metadata': metadata,
-      'typingUsers': typingUsers?.map(
-        (key, value) => MapEntry(key, value.toIso8601String()),
-      ),
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+      if (lastMessageAt != null) 'lastMessageAt': Timestamp.fromDate(lastMessageAt!),
+      if (lastMessage != null) 'lastMessage': lastMessage!.toMap(),
+      if (metadata != null) 'metadata': metadata,
+      if (typingUsers != null)
+        'typingUsers': typingUsers!.map(
+          (key, value) => MapEntry(key, Timestamp.fromDate(value)),
+        ),
       'isArchived': isArchived,
       'isMuted': isMuted,
+      'unreadCount': unreadCount,
+      if (bio != null) 'bio': bio,
     };
   }
 
-  factory ChatRoom.fromJson(Map<String, dynamic> json) {
+  factory ChatRoom.fromMap(Map<String, dynamic> map) {
     return ChatRoom(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      photoUrl: json['photoUrl'] as String?,
+      id: map['id'] as String? ?? '',
+      name: map['name'] as String? ?? '',
+      photoUrl: map['photoUrl'] as String?,
       type: ChatRoomType.values.firstWhere(
-        (e) => e.toString().split('.').last == json['type'],
+        (e) => e.toString().split('.').last == (map['type'] as String? ?? 'individual'),
         orElse: () => ChatRoomType.individual,
       ),
-      memberIds: List<String>.from(json['memberIds'] as List),
-      adminIds: List<String>.from(json['adminIds'] as List),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      lastMessageAt: json['lastMessageAt'] != null
-          ? DateTime.parse(json['lastMessageAt'] as String)
+      memberIds: List<String>.from(map['memberIds'] ?? []),
+      adminIds: List<String>.from(map['adminIds'] ?? []),
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastMessageAt: (map['lastMessageAt'] as Timestamp?)?.toDate(),
+      lastMessage: map['lastMessage'] != null
+          ? Message.fromMap(map['lastMessage'] as Map<String, dynamic>)
           : null,
-      lastMessage: json['lastMessage'] != null
-          ? Message.fromJson(json['lastMessage'] as Map<String, dynamic>)
-          : null,
-      metadata: json['metadata'] as Map<String, dynamic>?,
-      typingUsers: json['typingUsers'] != null
-          ? Map<String, DateTime>.from(json['typingUsers'] as Map<String, dynamic>).map(
-              (key, value) => MapEntry(key, DateTime.parse(value as String)))
-          : null,
-      isArchived: json['isArchived'] as bool? ?? false,
-      isMuted: json['isMuted'] as bool? ?? false,
+      metadata: map['metadata'] as Map<String, dynamic>?,
+      typingUsers: (map['typingUsers'] as Map<String, dynamic>?)?.map(
+        (key, value) => MapEntry(key, (value as Timestamp).toDate()),
+      ),
+      isArchived: map['isArchived'] as bool? ?? false,
+      isMuted: map['isMuted'] as bool? ?? false,
+      unreadCount: map['unreadCount'] as int? ?? 0,
+      bio: map['bio'] as String?,
     );
+  }
+
+  static ChatRoomType parseRoomType(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'group':
+        return ChatRoomType.group;
+      case 'channel':
+        return ChatRoomType.channel;
+      case 'individual':
+      default:
+        return ChatRoomType.individual;
+    }
   }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-
     return other is ChatRoom &&
         other.id == id &&
         other.name == name &&
@@ -144,7 +177,9 @@ class ChatRoom {
         mapEquals(other.metadata, metadata) &&
         mapEquals(other.typingUsers, typingUsers) &&
         other.isArchived == isArchived &&
-        other.isMuted == isMuted;
+        other.isMuted == isMuted &&
+        other.unreadCount == unreadCount &&
+        other.bio == bio;
   }
 
   @override
@@ -154,8 +189,8 @@ class ChatRoom {
       name,
       photoUrl,
       type,
-      memberIds,
-      adminIds,
+      Object.hashAll(memberIds),
+      Object.hashAll(adminIds),
       createdAt,
       updatedAt,
       lastMessageAt,
@@ -164,6 +199,8 @@ class ChatRoom {
       typingUsers,
       isArchived,
       isMuted,
+      unreadCount,
+      bio,
     );
   }
 

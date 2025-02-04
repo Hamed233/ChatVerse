@@ -3,19 +3,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ChatUser {
   final String id;
   final String name;
-  final String? photoUrl;
   final String? email;
+  final String? photoUrl;
   final bool isOnline;
   final DateTime? lastSeen;
+  final DateTime? createdAt;
   final Map<String, dynamic>? metadata;
 
   ChatUser({
     required this.id,
     required this.name,
-    this.photoUrl,
     this.email,
+    this.photoUrl,
     this.isOnline = false,
     this.lastSeen,
+    this.createdAt,
     this.metadata,
   });
 
@@ -23,11 +25,14 @@ class ChatUser {
     return ChatUser(
       id: json['id'] as String,
       name: json['name'] as String,
-      photoUrl: json['photoUrl'] as String?,
       email: json['email'] as String?,
+      photoUrl: json['photoUrl'] as String?,
       isOnline: json['isOnline'] as bool? ?? false,
       lastSeen: json['lastSeen'] != null
           ? (json['lastSeen'] as Timestamp).toDate()
+          : null,
+      createdAt: json['createdAt'] != null
+          ? (json['createdAt'] as Timestamp).toDate()
           : null,
       metadata: json['metadata'] as Map<String, dynamic>?,
     );
@@ -37,30 +42,33 @@ class ChatUser {
     return {
       'id': id,
       'name': name,
-      'photoUrl': photoUrl,
-      'email': email,
+      if (email != null) 'email': email,
+      if (photoUrl != null) 'photoUrl': photoUrl,
       'isOnline': isOnline,
-      'lastSeen': lastSeen != null ? Timestamp.fromDate(lastSeen!) : null,
-      'metadata': metadata,
+      if (lastSeen != null) 'lastSeen': Timestamp.fromDate(lastSeen!),
+      if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
+      if (metadata != null) 'metadata': metadata,
     };
   }
 
   ChatUser copyWith({
     String? id,
     String? name,
-    String? photoUrl,
     String? email,
+    String? photoUrl,
     bool? isOnline,
     DateTime? lastSeen,
+    DateTime? createdAt,
     Map<String, dynamic>? metadata,
   }) {
     return ChatUser(
       id: id ?? this.id,
       name: name ?? this.name,
-      photoUrl: photoUrl ?? this.photoUrl,
       email: email ?? this.email,
+      photoUrl: photoUrl ?? this.photoUrl,
       isOnline: isOnline ?? this.isOnline,
       lastSeen: lastSeen ?? this.lastSeen,
+      createdAt: createdAt ?? this.createdAt,
       metadata: metadata ?? this.metadata,
     );
   }

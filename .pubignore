@@ -1,0 +1,38 @@
+# Ignore test files
+test/chat_controller_test.dart
+test/chat_controller_test.mocks.dart
+test/models/chat_room_test.dart
+test/models/chat_user_test.dart
+test/models/message_test.dart
+test/widgets/chat_bubble_test.dart
+
+# Ignore development files
+.dart_tool/
+.idea/
+.vscode/
+*.iml
+
+# Ignore build artifacts
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+
+# Ignore example build artifacts
+example/.dart_tool/
+example/build/
+example/.flutter-plugins
+example/.flutter-plugins-dependencies
+example/.packages
+example/pubspec.lock
+
+# Ignore documentation
+doc/
+docs/
+
+# Ignore git files
+.git/
+.gitignore
+.gitattributes
