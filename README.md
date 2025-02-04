@@ -10,10 +10,7 @@ A powerful and customizable Flutter chat library with Firebase integration, feat
 ## Demo Video 🎥
 
 <div align="center">
-  <video width="400" controls>
-    <source src="https://github.com/Hamed233/ChatVerse/raw/main/assets/chatverse_demo.mp4" type="video/mp4">
-    Your browser does not support the video tag.
-  </video>
+  <img src="https://raw.githubusercontent.com/Hamed233/ChatVerse/main/assets/chatverse_demo.gif" alt="Flutter AI Kit Demo" width="400"/>
 </div>
 
 ## Features 🌟
@@ -67,7 +64,7 @@ Add ChatVerse to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  chatverse: ^0.0.4
+  chatverse: ^0.0.5
 ```
 
 ### Basic Usage
